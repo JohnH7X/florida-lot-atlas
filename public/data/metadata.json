@@ -1,0 +1,26 @@
+{
+ "checkedDate": "2026-11-09",
+ "zoningDate": "2026-11-09",
+ "addressDate": "2026-11-09",
+ "unitsDate": "2026-11-09",
+ "zoneCount": 0,
+ "addressCount": 0,
+ "milieuCount": 0,
+ "addressShards": [],
+ "unitCount": 10950670,
+ "countyCount": 67,
+ "sources": [
+  {
+   "label": "Florida Statewide Parcels (FDOR / FGIO)",
+   "url": "https://geodata.floridagio.gov/"
+  },
+  {
+   "label": "Esri World geocoder",
+   "url": "https://www.esri.com/en-us/arcgis/products/arcgis-world-geocoding/overview"
+  }
+ ],
+ "geometryIssues": [],
+ "zoningSource": "",
+ "addressSource": "",
+ "transformations": "Live parcel queries."
+}
