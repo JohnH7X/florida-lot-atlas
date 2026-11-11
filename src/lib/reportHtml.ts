@@ -65,7 +65,7 @@ export function reportHtml(f: PropertyFile, settings: Settings) {
   <h2>3. Assessment roll${u?.marketDate ? ` (${esc(u.marketDate)})` : ''}</h2>${u ? `<table>
   <tr><th>Just value</th><td><b>${money(u.marketValue)}</b></td></tr><tr><th>Land value</th><td>${money(u.landValue)}</td></tr>
   <tr><th>Assessed value</th><td>${money(u.totalValue)}</td></tr><tr><th>Taxable value</th><td>${money(u.taxableValue)}</td></tr><tr><th>Use code</th><td>${esc(u.use || '—')}</td></tr>
-  ${(u.sales || []).map((x, i) => `<tr><th>Sale ${i + 1}</th><td>${money(x.price)} · ${esc(x.date)}${x.qualified ? '' : ' (not arm’s length)'}</td></tr>`).join('')}</table>` : '<p>No tax-roll record for this parcel. Check with the county property appraiser.</p>'}
+  ${(u.sales || []).map((x, i) => `<tr><th>Sale ${i + 1}</th><td>${esc(x.date)} · ${x.nominal ? 'nominal transfer' : money(x.price)}${x.qualified ? '' : ' (not arm’s length)'}${x.book ? ` · OR ${esc(x.book)}/${esc(x.page || '')}` : ''}</td></tr>`).join('')}${u.infra ? `<tr><th>Drinking water</th><td>${esc(u.infra.water)}</td></tr><tr><th>Wastewater</th><td>${esc(u.infra.sewer)}</td></tr>` : ''}</table>` : '<p>No tax-roll record for this parcel. Check with the county property appraiser.</p>'}
   <h2>4. Building</h2><table>
   <tr><th>Effective year built</th><td>${u?.effYear ?? '—'}</td></tr><tr><th>Buildings</th><td>${u?.buildings ?? '—'}</td></tr><tr><th>Year built</th><td>${u?.builtYear ?? '—'}</td></tr>
   <tr><th>Floors</th><td>${u?.floors ?? '—'}</td></tr><tr><th>Residential units</th><td>${u?.dwellings ?? '—'}</td></tr><tr><th>Living area</th><td>${area(u?.floorArea)}</td></tr></table>

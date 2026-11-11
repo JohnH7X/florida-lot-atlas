@@ -54,8 +54,17 @@ export const PREOFFER_CHECKS: Check[] = [
   { key: 'title', label: 'Title commitment ordered (liens, open permits, code liens)' },
   { key: 'survey', label: 'Survey current; matches the parcel map and improvements' },
   { key: 'roll', label: 'Property appraiser record checked (owner, values, exemptions)' },
-  { key: 'sales', label: 'Sales history and recent comparable sales reviewed' },
+  { key: 'sales', label: 'Full sales history (every deed) and recent comparable sales reviewed' },
   { key: 'zoning', label: 'Zoning and future land use checked with the city or county' },
+  { key: 'water', label: 'Infrastructure · Drinking water: public water or private well confirmed', hint: 'Ask the water utility for a will-serve letter; a well needs a water test.' },
+  { key: 'sewer', label: 'Infrastructure · Wastewater: central sewer or septic confirmed', url: 'https://www.floridahealth.gov/environmental-health/onsite-sewage/', hint: 'Septic: get the permit from the county health department and a septic inspection.' },
+  { key: 'electric', label: 'Infrastructure · Electric provider and service at the lot confirmed', url: 'https://www.floridapsc.com/electric-utility-service-territory', hint: 'FPL, Duke, TECO, a co-op or a city utility.' },
+  { key: 'gas', label: 'Infrastructure · Natural gas available (or propane)' },
+  { key: 'broadband', label: 'Infrastructure · Internet / broadband providers at the address', url: 'https://broadbandmap.fcc.gov/home' },
+  { key: 'road', label: 'Infrastructure · Legal access on a paved road; who maintains it (city, county, HOA, private)' },
+  { key: 'drainage', label: 'Infrastructure · Stormwater, drainage and water-management-district permits' },
+  { key: 'fees', label: 'Infrastructure · Hook-up, capacity and impact fees (vacant land / new build)' },
+  { key: 'hydrant', label: 'Infrastructure · Fire hydrant and fire station distance (insurance rating)' },
   { key: 'permits', label: 'Open and expired permits searched' },
   { key: 'flood', label: 'FEMA flood zone and elevation certificate checked', url: 'https://msc.fema.gov/portal/search' },
   { key: 'insurance', label: 'Homeowners and wind insurance quote obtained', hint: '4-point and wind-mitigation inspections lower premiums.' },
@@ -109,7 +118,16 @@ export function preofferFindings(f: PropertyFile): Record<string, Finding> {
   const s = f.snapshot, u = s.unit, out: Record<string, Finding> = {};
   const price = Number(f.mandate.price || f.listing.price || f.mandate.budget) || 0;
   if (u) out.roll = { note: [u.owner && `Owner: ${u.owner}`, u.use, u.builtYear && `built ${u.builtYear}`, u.marketValue && `just value ${money(u.marketValue)}`, u.taxableValue && `taxable ${money(u.taxableValue)}`, u.homestead ? 'homestead' : 'no homestead', u.marketDate].filter(Boolean).join(' · ') + '.', done: true };
-  if (u?.sales?.length) out.sales = { note: 'Recorded sales: ' + u.sales.map(x => `${x.date} ${money(x.price)}${x.qualified ? '' : ' (not arm’s length)'}`).join(' · ') + '. Pull comparables for the last 12 months.' };
+  if (u?.sales?.length) out.sales = { note: 'Last sales on the tax roll: ' + u.sales.map(x => `${x.date} ${x.nominal ? 'nominal transfer' : money(x.price)}${x.qualified ? '' : ' (not arm’s length)'}${x.book ? ` OR ${x.book}/${x.page}` : ''}`).join(' · ') + '. Older deeds: county property appraiser sales tab and clerk official records.' };
+  const inf = u?.infra;
+  if (inf) {
+    const src = ` (Florida Dept. of Health water inventory${inf.year ? `, ${inf.year}` : ''}).`;
+    out.water = { note: `${inf.water}${src}${inf.waterKind === 'well' ? ' Order a well water test.' : inf.waterKind === 'public' ? ' Confirm the account with the utility.' : ' Confirm with the utility.'}`, done: inf.water.startsWith('Known') };
+    out.sewer = { note: `${inf.sewer}${src}${inf.sewerKind === 'septic' ? ' Get the septic permit from the health department and a septic inspection; check whether sewer is coming (mandatory hook-up).' : inf.sewerKind === 'sewer' ? ' Confirm the account with the utility.' : ' Confirm with the utility.'}`, done: inf.sewer.startsWith('Known') };
+    if (inf.sewerKind === 'na' || inf.waterKind === 'na') out.fees = { note: 'Vacant on the inventory: ask the utilities for a will-serve letter, line extension cost and capacity / impact fees.' };
+  }
+  if (u && !/^Vacant/.test(u.use || '') && u.builtYear) out.electric = { note: `Built ${u.builtYear}: service exists. Confirm the provider and panel age at inspection.` };
+  if (s.center) out.broadband = { note: `Check providers at ${s.center[1].toFixed(5)}, ${s.center[0].toFixed(5)} on the FCC broadband map.` };
   out.survey = { note: `Parcel ${s.lot}${s.area ? ` · about ${Math.round(s.area * 10.7639).toLocaleString()} ft² on the parcel map` : ''}${u?.legal ? ` · legal: ${u.legal}` : ''}. Compare with the survey.` };
   out.zoning = { note: `Zoning is set by ${u?.muni ? `the City of ${u.muni[0] + u.muni.slice(1).toLowerCase()} or ` : ''}${u?.county || 'the county'}; check zoning and future land use.` };
   if (u?.builtYear) out.lead = u.builtYear < 1978 ? { note: `Built ${u.builtYear}: lead paint disclosure required.` } : { note: `Built ${u.builtYear}: lead paint disclosure not required.`, done: true };

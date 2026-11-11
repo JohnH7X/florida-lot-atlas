@@ -93,6 +93,28 @@ export function streetViewUrl([lng, lat]: [number, number]): string {
   return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lng.toFixed(6)}`;
 }
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export interface Sale { price: number; year: number; month: number | null; date: string; qualified: boolean; nominal: boolean; code: string; vacant: boolean; book: string | null; page: string | null }
+
+/** Sewer/septic and public water/well for a parcel (Florida Department of Health, Florida Water Management Inventory). */
+export interface Infra { sewer: string; water: string; sewerKind: 'sewer' | 'septic' | 'unknown' | 'na'; waterKind: 'public' | 'well' | 'unknown' | 'na'; year: string | null; source: string | null }
+const FLWMI = 'https://maps.floridahealth.gov/server/rest/services/FLWMI/FLWMI_Wastewater/MapServer/0/query';
+const WW: Record<string, string> = { UNK: 'Unknown, no data', NA: 'Not built', KnownSeptic: 'Known septic tank', KnownSewer: 'Known central sewer', LikelySeptic: 'Likely septic tank',
+  LikelySewer: 'Likely central sewer', UNDT: 'Undetermined (conflicting data)', SWLSeptic: 'Somewhat likely septic', SWLSewer: 'Somewhat likely central sewer' };
+const DW: Record<string, string> = { UNK: 'Unknown, no data', NA: 'Not built', KnownWell: 'Known private well', KnownPublic: 'Known public water', LikelyWell: 'Likely private well',
+  LikelyPublic: 'Likely public water', SWLWell: 'Somewhat likely private well', SWLPublic: 'Somewhat likely public water', UNDT: 'Undetermined (conflicting data)' };
+export async function infrastructureAt([x, y]: [number, number]): Promise<Infra | null> {
+  const q = new URLSearchParams({ geometry: `${x},${y}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+    outFields: 'WW,DW,WW_UPD,DW_UPD,WW_SRC_NAME,DW_SRC_NAME', returnGeometry: 'false', f: 'json' });
+  const r = await fetch(`${FLWMI}?${q}`);
+  const a = (await r.json()).features?.[0]?.attributes;
+  if (!a) return null;
+  const ww = String(a.WW || 'UNK'), dw = String(a.DW || 'UNK');
+  return { sewer: WW[ww] || ww, water: DW[dw] || dw, sewerKind: ww === 'NA' ? 'na' : /Sewer/.test(ww) ? 'sewer' : /Septic/.test(ww) ? 'septic' : 'unknown',
+    waterKind: dw === 'NA' ? 'na' : /Public/.test(dw) ? 'public' : /Well/.test(dw) ? 'well' : 'unknown',
+    year: [a.WW_UPD, a.DW_UPD].filter(Boolean).sort().pop() || null, source: [a.WW_SRC_NAME, a.DW_SRC_NAME].filter(Boolean).filter((v, i, l) => l.indexOf(v) === i).join(' · ') || null };
+}
+
 /** One parcel's tax-roll record as a unit (Florida DOR NAL file fields). */
 export interface Unit {
   id: string; label: string; center: [number, number]; use: string | null; category: string | null;
@@ -104,8 +126,8 @@ export interface Unit {
   utilities?: string | null; bedrooms?: number | null; baths?: number | null;
   zoning?: string | null; overlays?: string | null; special?: string | null; far?: string | null; landmark?: string | null; histDistrict?: string | null;
   depth?: number | null;
-  taxableValue?: number | null; homestead?: boolean; legal?: string | null; sales?: { price: number; date: string; qualified: boolean }[];
-  effYear?: number | null; buildings?: number | null;
+  taxableValue?: number | null; homestead?: boolean; legal?: string | null; sales?: Sale[];
+  effYear?: number | null; buildings?: number | null; infra?: Infra | null;
 }
 
 // Florida DOR county numbers (alphabetical, 11–77).
@@ -141,8 +163,11 @@ export async function unitsInLot(feature: LotFeature): Promise<Unit[]> {
   const cls = str(p.DOR_UC);
   const land = num(p.LND_VAL), just = num(p.JV);
   const mail = [str(p.OWN_ADDR1), str(p.OWN_ADDR2), [str(p.OWN_CITY), str(p.OWN_STATE)].filter(Boolean).join(', '), str(p.OWN_ZIPCD)].filter(Boolean).join(' ');
-  const sales = [1, 2].map(i => ({ price: num(p[`SALE_PRC${i}`]) || 0, year: num(p[`SALE_YR${i}`]), month: num(p[`SALE_MO${i}`]), q: String(p[`QUAL_CD${i}`] ?? '') }))
-    .filter(x => x.price > 100 && x.year).map(x => ({ price: x.price, date: `${x.year}-${String(x.month || 1).padStart(2, '0')}`, qualified: x.q === '01' || x.q === '1' }));
+  const sales: Sale[] = [1, 2].map(i => ({ price: num(p[`SALE_PRC${i}`]) || 0, year: num(p[`SALE_YR${i}`]), month: num(p[`SALE_MO${i}`]), q: String(p[`QUAL_CD${i}`] ?? '').padStart(2, '0'),
+    vi: str(p[`VI_CD${i}`]), book: str(p[`OR_BOOK${i}`]), page: str(p[`OR_PAGE${i}`]) }))
+    .filter(x => x.year).map(x => ({ price: x.price, year: x.year!, month: x.month, date: x.month ? `${MONTHS[x.month - 1]} ${x.year}` : String(x.year),
+      qualified: x.q === '01' || x.q === '02', nominal: x.price <= 100, code: x.q, vacant: x.vi === 'V', book: x.book, page: x.page }))
+    .sort((a, b) => b.year - a.year || (b.month || 0) - (a.month || 0));
   const co = Number(p.CO_NO);
   return [{
     id: `${co}-${p.PARCEL_ID}`, label: [str(p.PHY_ADDR1), str(p.PHY_CITY)].filter(Boolean).join(', ') || p.LABEL, center: lotCenter(feature) || [0, 0],
