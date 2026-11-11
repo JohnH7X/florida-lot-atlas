@@ -126,10 +126,7 @@ export default function MapView(props: Props) {
               'text-rotation-alignment': 'map', 'text-allow-overlap': true, 'text-ignore-placement': true, 'text-offset': [0, -0.7] },
             paint: { 'text-color': '#1d3326', 'text-halo-color': '#fff8d6', 'text-halo-width': 2 } });
           instance.addLayer({ id: 'lot-hover', type: 'fill', source: 'lots', filter: ['==', ['get', 'NO_LOT'], ''], paint: { 'fill-color': '#f2c200', 'fill-opacity': 0.28 } });
-          instance.on('click', 'lot-hit', e => {
-            const lot = e.features?.[0]?.properties?.NO_LOT;
-            if (typeof lot === 'string') callbacks.current.onLotClick(lot);
-          });
+
           // Hovering a parcel highlights it and names it; clicking opens owner, values and sales.
           const tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'lot-tip', offset: 12 });
           // One map-wide handler, so the highlight follows the pointer and clears off-parcel, off-map, while dragging and on zoom.
@@ -157,7 +154,7 @@ export default function MapView(props: Props) {
           // Below parcel zoom (or before parcels load), a click still opens the parcel under the pointer.
           instance.on('click', e => {
             if (!instance || instance.getZoom() < 13) return;
-            if (instance.getLayer('lot-hit') && instance.queryRenderedFeatures(e.point, { layers: ['lot-hit'] }).length) return;
+            clearHover();
             callbacks.current.onPointClick?.([e.lngLat.lng, e.lngLat.lat]);
           });
           instance.on('moveend', () => refreshLots());
