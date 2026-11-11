@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, UserSearch, X } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucide-react';
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
@@ -29,7 +29,8 @@ interface Props {
 export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDetails, zoneText, zoneGrid, onReport, onClose }: Props) {
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [copied, setCopied] = useState(false);
-  const [ownerOpen, setOwnerOpen] = useState(false);
+  const [tab, setTab] = useState<'overview' | 'owner' | 'sales' | 'infra' | 'lot'>('overview');
+  useEffect(() => { setTab('overview'); }, [lot]);
   const [infra, setInfra] = useState<Infra | null | 'loading'>('loading');
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
   useEffect(() => {
@@ -53,7 +54,7 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   }, [lot]);
   useEffect(() => {
     let active = true;
-    setUnits(null); setOwnerOpen(false);
+    setUnits(null);
     void unitsInLot(lot).then(found => { if (active) setUnits(found); }).catch(() => { if (active) setUnits([]); });
     return () => { active = false; };
   }, [lot]);
@@ -115,10 +116,13 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     {units === null && <p className="detail-note" role="status">Loading assessment…</p>}
     {units?.length === 0 && <p className="detail-note">No assessment record on this parcel. Check the county’s real property office.</p>}
 
-    {unit && <>
+    {unit && <div className="tabs" role="tablist">{(['overview', 'owner', 'sales', 'infra', 'lot'] as const).map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
+      {t === 'overview' ? 'Overview' : t === 'owner' ? 'Owner' : t === 'sales' ? `Sales${unit.sales?.length ? ` (${unit.sales.length})` : ''}` : t === 'infra' ? 'Utilities' : 'Lot'}</button>)}</div>}
+
+    {unit && tab === 'overview' && <>
       <div className="value-hero"><span>Just (market) value · appraisal</span><strong>{money(unit.marketValue ?? unit.totalValue)}</strong>
         <small>{unit.marketDate || 'Tax roll'} · {unit.county || 'county'} property appraiser</small></div>
-      <div className="owner-line"><span>Owner of record</span><b>{unit.owner || 'Not published — see property appraiser'}</b>{unit.ownerMail && <small>{unit.ownerMail}</small>}</div>
+      <button className="owner-line as-link" onClick={() => setTab('owner')}><span>Owner of record</span><b>{unit.owner || 'Not published — see property appraiser'}</b><small>Owner details →</small></button>
       <table className="appraisal"><tbody>
         <tr><th>Land value</th><td>{money(unit.landValue)}</td></tr>
         <tr><th>Building & improvements</th><td>{money(unit.buildingValue)}</td></tr>
@@ -139,6 +143,28 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
         {(unit.landmark || unit.histDistrict) && <div><dt>Landmark</dt><dd>{[unit.landmark, unit.histDistrict].filter(Boolean).join(' · ')}</dd></div>}
         {unit.agDistrict && <div><dt>Agricultural district</dt><dd>{unit.agDistrict}</dd></div>}
       </dl>
+      {unit.sales?.[0] && <button className="owner-line as-link" onClick={() => setTab('sales')}><span>Last sale</span><b>{unit.sales[0].nominal ? 'Nominal transfer' : money(unit.sales[0].price)} · {unit.sales[0].date}</b><small>Full sales history →</small></button>}
+    </>}
+
+    {unit && tab === 'owner' && <div className="tab-body">
+      <div className="owner-line"><span>Owner of record</span><b>{unit.owner || 'Not published — see property appraiser'}</b></div>
+      <dl className="fact-grid">
+        <div><dt>Mailing address</dt><dd>{unit.ownerMail || '—'}</dd></div>
+        <div><dt>Homestead</dt><dd>{unit.homestead ? 'Yes — owner-occupied' : 'No'}</dd></div>
+        <div><dt>Parcel ID</dt><dd>{key}</dd></div>
+        <div><dt>County</dt><dd>{unit.county || '—'}</dd></div>
+        {unit.sales?.[0]?.buyer && <div><dt>Acquired</dt><dd>{unit.sales[0].date}<small>{unit.sales[0].nominal ? 'nominal transfer' : money(unit.sales[0].price)}</small></dd></div>}
+      </dl>
+      {unit.legal && <p className="detail-foot">Legal description: {unit.legal}</p>}
+      <ol className="owner-links">
+        {links?.roll && <li><a href={links.roll} target="_blank" rel="noreferrer">{unit.county || 'County'} property appraiser <ArrowUpRight size={11}/></a> — parcel {key}, exemptions, permits.</li>}
+        <li><a href={`https://www.google.com/search?q=${encodeURIComponent(`${unit.county || ''} Florida clerk of court official records search`)}`} target="_blank" rel="noreferrer">Clerk official records <ArrowUpRight size={11}/></a> — vesting deed, mortgages, liens.</li>
+        <li><a href={`https://search.sunbiz.org/Inquiry/CorporationSearch/ByName`} target="_blank" rel="noreferrer">Sunbiz <ArrowUpRight size={11}/></a> — officers and agent if the owner is a company.</li>
+      </ol>
+      <p className="detail-foot">Owner on the county tax roll (Florida DOR statewide parcels). Confirm the vesting deed in the clerk’s official records.</p>
+    </div>}
+
+    {unit && tab === 'sales' && <div className="tab-body">
       <div className="sales"><b>Sales history{unit.sales?.length ? ` · ${unit.sales.length} sale${unit.sales.length > 1 ? 's' : ''}` : ''}</b>
         {history === 'loading' && <p className="detail-foot">Loading the county’s full sales history…</p>}
         {unit.sales?.length ? unit.sales.map((x, i) => <div key={i}><span>{x.date}</span><strong>{x.nominal ? 'Nominal' : money(x.price)}</strong>
@@ -148,8 +174,9 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           : history !== 'loading' && <p className="detail-foot">No sale in the last two years on the state tax roll.</p>}
         <p className="detail-foot">{countySource ? <>Source: {countySource}. </> : <>The state roll only carries sales from the last two roll years (up to two per parcel). </>}Every older sale and deed is on the {links?.roll ? <a href={links.roll} target="_blank" rel="noreferrer">property appraiser’s sales tab <ArrowUpRight size={10}/></a> : 'property appraiser’s sales tab'} and in the clerk’s official records.</p>
       </div>
-      <details className="infra" open>
-        <summary>Infrastructure availability<ChevronDown size={14}/></summary>
+    </div>}
+
+    {unit && tab === 'infra' && <div className="tab-body infra">
         {infra === 'loading' ? <p className="detail-note">Checking water and sewer…</p> : <ul>
           <li className={infra?.waterKind === 'public' ? 'ok' : infra?.waterKind === 'well' ? 'warn' : 'q'}><span>Drinking water</span><b>{infra?.water || 'No data'}</b></li>
           <li className={infra?.sewerKind === 'sewer' ? 'ok' : infra?.sewerKind === 'septic' ? 'warn' : 'q'}><span>Wastewater</span><b>{infra?.sewer || 'No data'}</b></li>
@@ -158,13 +185,11 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
         <p className="detail-foot">Water and sewer: Florida Department of Health, Florida Water Management Inventory{infra && infra !== 'loading' && infra.year ? ` (updated ${infra.year})` : ''}. “Likely” means estimated, not confirmed. The full checklist is in the property file.</p>
-      </details>
-      {unit.legal && <p className="detail-foot">Legal: {unit.legal}</p>}
-    </>}
-    {!unit && area !== null && <dl className="fact-grid"><div><dt>Lot area (drawing)</dt><dd>{sqft(area, true)}</dd></div></dl>}
+    </div>}
 
-    {edges.length > 0 && <details className="measure">
-      <summary>Lot measurements<ChevronDown size={14}/></summary>
+    {(tab === 'lot' || !unit) && <div className="tab-body">
+      {!unit && area !== null && <dl className="fact-grid"><div><dt>Lot area (drawing)</dt><dd>{sqft(area, true)}</dd></div></dl>}
+      {edges.length > 0 && <>
       <dl className="fact-grid">
         {unit?.frontage != null && <div><dt>Frontage (roll)</dt><dd>{len(unit.frontage)}</dd></div>}
         {unit?.depth != null && <div><dt>Depth (roll)</dt><dd>{len(unit.depth)}</dd></div>}
@@ -173,19 +198,10 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
       </dl>
       <ol className="side-list">{edges.map((e, i) => <li key={i}><span>Side {i + 1}</span><strong>{(e.length * FT_PER_M).toFixed(1)} ft</strong><small>{e.length.toFixed(1)} m</small></li>)}</ol>
       <p className="detail-foot">Sides are measured on the county parcel map drawing, not a survey.</p>
-    </details>}
-
-    <button className="owner-button" onClick={() => setOwnerOpen(o => !o)} disabled={units === null}><UserSearch size={15}/> Get owner</button>
-    {ownerOpen && <div className="owner-steps" role="status">
-      {unit?.owner ? <><b>{unit.owner}</b>{unit.ownerMail && <p>Mailing address: {unit.ownerMail}</p>}<p className="detail-foot">Owner on the county tax roll (Florida DOR statewide parcels). Confirm the vesting deed in the clerk’s official records.</p></>
-        : <p>No owner name on this record. Use the county property appraiser’s search below.</p>}
-      <ol>
-        {acris && <li><a href={acris} target="_blank" rel="noreferrer">ACRIS deeds & mortgages <ArrowUpRight size={11}/></a> — recorded documents for this BBL, free.</li>}
-        {links?.roll && <li><a href={links.roll} target="_blank" rel="noreferrer">{unit?.county || 'County'} property appraiser <ArrowUpRight size={11}/></a> — parcel {key}.</li>}
-        <li><a href={`https://www.google.com/search?q=${encodeURIComponent(`${unit?.county || ''} Florida clerk of court official records search`)}`} target="_blank" rel="noreferrer">Clerk official records <ArrowUpRight size={11}/></a> — deeds and mortgages.</li>
-      </ol>
-      <button onClick={() => setOwnerOpen(false)}>Close</button>
+      </>}
     </div>}
+
+
     {onReport && <button className="report-button" onClick={report} disabled={units === null}><FileText size={15}/> Create report</button>}
     {viewPoint && <a className="street-view-button" href={streetViewUrl(viewPoint)} target="_blank" rel="noreferrer"><Eye size={15}/> Street View <ArrowUpRight size={13}/></a>}
 
