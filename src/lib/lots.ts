@@ -94,7 +94,51 @@ export function streetViewUrl([lng, lat]: [number, number]): string {
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-export interface Sale { price: number; year: number; month: number | null; date: string; qualified: boolean; nominal: boolean; code: string; vacant: boolean; book: string | null; page: string | null }
+export interface Sale { price: number; year: number; month: number | null; date: string; qualified: boolean; nominal: boolean; code: string; vacant: boolean; book: string | null; page: string | null;
+  day?: number | null; deed?: string | null; buyer?: string | null; seller?: string | null; instrument?: string | null }
+
+/** Full sale history from county property appraisers that publish it as open GIS data. */
+export const SALES_COUNTIES: Record<string, string> = { 'Broward County': 'Broward County Property Appraiser (last 5 deeds)', 'Lee County': 'Lee County Property Appraiser (last 4 deeds)',
+  'Orange County': 'Orange County Property Appraiser (every sale since 2022, with buyer and seller)' };
+const BROWARD = 'https://services.arcgis.com/JMAJrTsHNLrSsWf5/arcgis/rest/services/PARCEL_POLY_BCPA_TAXROLL/FeatureServer/0/query';
+const LEE = 'https://services2.arcgis.com/LvWGAAhHwbCJ2GMP/arcgis/rest/services/Lee_County_Parcels/FeatureServer/0/query';
+const ORANGE = 'https://vgispublic.ocpafl.org/server/rest/services/DYNAMIC/Dynamic_Layers/MapServer/14/query';
+async function arc(url: string, params: Record<string, string>) {
+  const r = await fetch(`${url}?${new URLSearchParams({ returnGeometry: 'false', f: 'json', ...params })}`);
+  const d = await r.json();
+  return (d.features || []).map((f: { attributes: Record<string, unknown> }) => f.attributes) as Record<string, unknown>[];
+}
+function dated(ms: unknown, price: number, extra: Partial<Sale>): Sale | null {
+  if (typeof ms !== 'number' || ms <= 0) return null;
+  const d = new Date(ms), year = d.getUTCFullYear(), month = d.getUTCMonth() + 1, day = d.getUTCDate();
+  return { price, year, month, day, date: `${MONTHS[month - 1]} ${day}, ${year}`, qualified: false, nominal: price <= 100, code: '', vacant: false, book: null, page: null, ...extra };
+}
+const at = ([x, y]: [number, number]) => ({ geometry: `${x},${y}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects' });
+export async function countySales(unit: Unit, center: [number, number] | null): Promise<Sale[] | null> {
+  const s = (v: unknown) => typeof v === 'string' && v.trim() && v.trim() !== '0' ? v.trim() : null;
+  const n = (v: unknown) => Number(v) || 0;
+  if (unit.county === 'Broward County' && center) {
+    const a = (await arc(BROWARD, { ...at(center), outFields: '*' }))[0];
+    if (!a) return null;
+    return [1, 2, 3, 4, 5].map(i => dated(a[`SALE_DATE_${i}`], n(a[`STAMP_AMOUNT_${i}`]), {
+      deed: s(a[`DEED_TYPE_${i}`])?.replace('*', '') || null, book: n(a[`BOOK_${i}`]) ? String(a[`BOOK_${i}`]) : null, page: n(a[`PAGE_${i}`]) ? String(a[`PAGE_${i}`]) : null,
+      instrument: n(a[`SALE${i}_CIN`]) ? String(a[`SALE${i}_CIN`]) : null, code: s(a[`SALE${i}_QUAL_CODE`]) || '', qualified: ['01', '02'].includes(String(a[`SALE${i}_QUAL_CODE`] ?? '')) })).filter(Boolean) as Sale[];
+  }
+  if (unit.county === 'Lee County' && center) {
+    const a = (await arc(LEE, { ...at(center), outFields: 'S_1DATE,S_1AMOUNT,S_1VI,S_1TC,S_1OR_NUM,S_2DATE,S_2AMOUNT,S_2VI,S_2TC,S_2OR_NUM,S_3DATE,S_3AMOUNT,S_3VI,S_3TC,S_3OR_NUM,S_4DATE,S_4AMOUNT,S_4VI,S_4TC,S_4OR_NUM' }))[0];
+    if (!a) return null;
+    return [1, 2, 3, 4].map(i => dated(a[`S_${i}DATE`], n(a[`S_${i}AMOUNT`]), { vacant: a[`S_${i}VI`] === 'V', code: s(a[`S_${i}TC`]) || '', qualified: a[`S_${i}TC`] === '01',
+      instrument: s(a[`S_${i}OR_NUM`]) })).filter(Boolean) as Sale[];
+  }
+  if (unit.county === 'Orange County' && unit.sbl) {
+    // The state roll writes Orange parcels section-township-range; the appraiser writes range-township-section.
+    const id = unit.sbl.replace(/\D/g, ''), pid = id.slice(4, 6) + id.slice(2, 4) + id.slice(0, 2) + id.slice(6);
+    const rows = await arc(ORANGE, { where: `PARCEL='${pid}'`, outFields: 'SALE_DATE,SALE_AMT,DEED_DESCERITION,GRANTOR,GRANTEE,BOOK,PAGE,INSTR_NUM,VAC_IMPR_CODE,SALE_TYPE', orderByFields: 'SALE_DATE DESC' });
+    return rows.map(a => dated(a.SALE_DATE, n(a.SALE_AMT), { deed: s(a.DEED_DESCERITION), seller: s(a.GRANTOR), buyer: s(a.GRANTEE), book: s(a.BOOK), page: s(a.PAGE),
+      instrument: s(a.INSTR_NUM), vacant: a.VAC_IMPR_CODE === 'V', qualified: true })).filter(Boolean) as Sale[];
+  }
+  return null;
+}
 
 /** Sewer/septic and public water/well for a parcel (Florida Department of Health, Florida Water Management Inventory). */
 export interface Infra { sewer: string; water: string; sewerKind: 'sewer' | 'septic' | 'unknown' | 'na'; waterKind: 'public' | 'well' | 'unknown' | 'na'; year: string | null; source: string | null }

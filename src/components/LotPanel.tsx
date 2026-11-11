@@ -3,7 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, UserSearch, X }
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
-import { FT_PER_M, infrastructureAt, type Infra, lotArea, lotCenter, lotEdges, SQFT_PER_M2, streetViewUrl, unitsInLot, type LotFeature, type Unit } from '../lib/lots';
+import { countySales, SALES_COUNTIES, type Sale, FT_PER_M, infrastructureAt, type Infra, lotArea, lotCenter, lotEdges, SQFT_PER_M2, streetViewUrl, unitsInLot, type LotFeature, type Unit } from '../lib/lots';
 
 const n = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -31,6 +31,7 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   const [copied, setCopied] = useState(false);
   const [ownerOpen, setOwnerOpen] = useState(false);
   const [infra, setInfra] = useState<Infra | null | 'loading'>('loading');
+  const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
   useEffect(() => {
     let active = true; setInfra('loading');
     const c = lotCenter(lot);
@@ -57,10 +58,19 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
 
+  useEffect(() => {
+    const u = units?.[0];
+    if (!u || !u.county || !SALES_COUNTIES[u.county]) { setHistory(null); return; }
+    let active = true; setHistory('loading');
+    void countySales(u, lotCenter(lot)).then(r => { if (active) setHistory(r); }).catch(() => { if (active) setHistory(null); });
+    return () => { active = false; };
+  }, [units, lot]);
   const area = lotArea(lot);
   const edges = lotEdges(lot);
   const perimeter = edges.reduce((t, e) => t + e.length, 0);
-  const unit = units?.[0];
+  const unit0 = units?.[0];
+  const unit = unit0 && Array.isArray(history) && history.length ? { ...unit0, sales: history } : unit0;
+  const countySource = unit0?.county && Array.isArray(history) && history.length ? SALES_COUNTIES[unit0.county] : '';
   const viewPoint = preferPoint || lotCenter(lot);
   const place = territory && territory !== 'none' ? territory.place : null;
   const links = territory && territory !== 'none' ? territory.links : null;
@@ -129,11 +139,14 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
         {(unit.landmark || unit.histDistrict) && <div><dt>Landmark</dt><dd>{[unit.landmark, unit.histDistrict].filter(Boolean).join(' · ')}</dd></div>}
         {unit.agDistrict && <div><dt>Agricultural district</dt><dd>{unit.agDistrict}</dd></div>}
       </dl>
-      <div className="sales"><b>Sales history</b>
+      <div className="sales"><b>Sales history{unit.sales?.length ? ` · ${unit.sales.length} sale${unit.sales.length > 1 ? 's' : ''}` : ''}</b>
+        {history === 'loading' && <p className="detail-foot">Loading the county’s full sales history…</p>}
         {unit.sales?.length ? unit.sales.map((x, i) => <div key={i}><span>{x.date}</span><strong>{x.nominal ? 'Nominal' : money(x.price)}</strong>
-          <small>{x.nominal ? 'non-cash transfer' : x.qualified ? 'arm’s-length sale' : 'not qualified'}{x.vacant ? ' · vacant' : ''}{x.book && <> · OR {x.book}/{x.page}</>}</small></div>)
-          : <p className="detail-foot">No sale in the last two years on the state tax roll.</p>}
-        <p className="detail-foot">The state roll only carries sales from the last two roll years (up to two per parcel). Every older sale and deed is on the {links?.roll ? <a href={links.roll} target="_blank" rel="noreferrer">property appraiser’s sales tab <ArrowUpRight size={10}/></a> : 'property appraiser’s sales tab'} and in the clerk’s official records.</p>
+          <small>{[x.deed, x.nominal ? 'non-cash transfer' : x.qualified ? 'arm’s-length sale' : x.code ? 'not qualified' : '', x.vacant ? 'vacant' : '',
+            x.book && x.page ? `OR ${x.book}/${x.page}` : x.instrument ? `Instr. ${x.instrument}` : ''].filter(Boolean).join(' · ')}
+            {(x.seller || x.buyer) && <><br/>{x.seller && <>From {x.seller}</>}{x.seller && x.buyer && ' → '}{x.buyer && <>to {x.buyer}</>}</>}</small></div>)
+          : history !== 'loading' && <p className="detail-foot">No sale in the last two years on the state tax roll.</p>}
+        <p className="detail-foot">{countySource ? <>Source: {countySource}. </> : <>The state roll only carries sales from the last two roll years (up to two per parcel). </>}Every older sale and deed is on the {links?.roll ? <a href={links.roll} target="_blank" rel="noreferrer">property appraiser’s sales tab <ArrowUpRight size={10}/></a> : 'property appraiser’s sales tab'} and in the clerk’s official records.</p>
       </div>
       <details className="infra" open>
         <summary>Infrastructure availability<ChevronDown size={14}/></summary>
