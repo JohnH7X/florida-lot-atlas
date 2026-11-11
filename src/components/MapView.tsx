@@ -132,19 +132,28 @@ export default function MapView(props: Props) {
           });
           // Hovering a parcel highlights it and names it; clicking opens owner, values and sales.
           const tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'lot-tip', offset: 12 });
-          instance.on('mousemove', 'lot-hit', e => {
-            const p = e.features?.[0]?.properties;
-            if (!instance || !p) return;
+          // One map-wide handler, so the highlight follows the pointer and clears off-parcel, off-map, while dragging and on zoom.
+          let hovered = '';
+          const clearHover = () => {
+            if (!instance || !hovered) return;
+            hovered = ''; instance.getCanvas().style.cursor = '';
+            instance.setFilter('lot-hover', ['==', ['get', 'NO_LOT'], '']); tip.remove();
+          };
+          instance.on('mousemove', e => {
+            if (!instance || !instance.getLayer('lot-hit')) return;
+            const p = instance.queryRenderedFeatures(e.point, { layers: ['lot-hit'] })[0]?.properties;
+            if (!p) { clearHover(); return; }
+            const id = String(p.NO_LOT);
             instance.getCanvas().style.cursor = 'pointer';
-            instance.setFilter('lot-hover', ['==', ['get', 'NO_LOT'], String(p.NO_LOT)]);
-            tip.setLngLat(e.lngLat).setHTML(`<b>Parcel ${String(p.LABEL || p.NO_LOT).replace(/[<>&]/g, '')}</b><br><small>Click for owner, value & sales</small>`).addTo(instance);
+            tip.setLngLat(e.lngLat);
+            if (id === hovered) return;
+            hovered = id;
+            instance.setFilter('lot-hover', ['==', ['get', 'NO_LOT'], id]);
+            tip.setHTML(`<b>Parcel ${String(p.LABEL || p.NO_LOT).replace(/[<>&]/g, '')}</b><br><small>Click for owner, value & sales</small>`).addTo(instance);
           });
-          instance.on('mouseleave', 'lot-hit', () => {
-            if (!instance) return;
-            instance.getCanvas().style.cursor = '';
-            instance.setFilter('lot-hover', ['==', ['get', 'NO_LOT'], '']);
-            tip.remove();
-          });
+          instance.getContainer().addEventListener('mouseleave', clearHover);
+          instance.on('dragstart', clearHover);
+          instance.on('zoomstart', clearHover);
           // Below parcel zoom (or before parcels load), a click still opens the parcel under the pointer.
           instance.on('click', e => {
             if (!instance || instance.getZoom() < 13) return;
