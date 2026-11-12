@@ -55,3 +55,6 @@ export const FAMILIES: Record<string, { label: string; color: string }> = {
   ZCON: { label: 'Zoning · Park', color: '#8db497' },
   ZX: { label: 'Zoning · Other', color: '#c9c3b6' },
 };
+
+/** A property sent from another app (e.g. DRE) through the link's `props` parameter. */
+export interface Pin { n: number; lng: number; lat: number; addr: string; stars: number }

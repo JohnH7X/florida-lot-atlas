@@ -1,4 +1,4 @@
-import type { Metadata, ViewState, Zone } from './types';
+import type { Metadata, Pin, ViewState, Zone } from './types';
 
 export async function getJSON<T>(path: string): Promise<T> {
   const response = await fetch(path);
@@ -27,6 +27,28 @@ export function readView(hash = window.location.hash): ViewState {
     zoom: bounded('z', DEFAULT_VIEW.zoom, 6, 19),
     zone: (p.get('zone') || '').slice(0, 30), milieu: (p.get('milieu') || '').slice(0, 20),
     zoneFilter: (p.get('filter') || '').slice(0, 30), activity: (p.get('use') || '').slice(0, 50), visible: p.get('layer') !== 'off' };
+}
+
+/** `#props=[[lng,lat,"address",stars],…]` puts several properties on the map as numbered pins (max 300). */
+export function readProps(hash = window.location.hash): Pin[] {
+  const raw = new URLSearchParams(hash.replace(/^#/, '')).get('props');
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    const out: Pin[] = [];
+    for (const row of arr.slice(0, 300)) {
+      if (!Array.isArray(row)) continue;
+      const lng = Number(row[0]), lat = Number(row[1]);
+      if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -88.5 || lng > -79 || lat < 23.8 || lat > 31.6) continue;
+      const stars = Math.max(0, Math.min(5, Math.round(Number(row[3]) || 0)));
+      out.push({ n: out.length + 1, lng, lat, addr: String(row[2] || '').slice(0, 160), stars });
+    }
+    return out;
+  } catch { return []; }
+}
+export function encodeProps(pins: Pin[]): string {
+  return pins.length ? '&props=' + encodeURIComponent(JSON.stringify(pins.map(p => [Number(p.lng.toFixed(6)), Number(p.lat.toFixed(6)), p.addr, p.stars]))) : '';
 }
 
 /** A link can ask the atlas to open the parcel at its coordinates: `#lng=…&lat=…&open=1&addr=123+Main+St`. */

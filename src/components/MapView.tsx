@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type Map as LibreMap, type ExpressionSpecification, type FilterSpecification, type StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { FAMILIES, type MapPosition, type ViewState, type Zone } from '../lib/types';
+import { FAMILIES, type MapPosition, type Pin, type ViewState, type Zone } from '../lib/types';
 import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
 import { FT_PER_M, LOT_MIN_ZOOM, lotEdges, lotsInBounds, streetViewUrl, type LotFeature } from '../lib/lots';
@@ -18,6 +18,9 @@ interface Props {
   focus: { coordinates: [number, number]; zoom: number; serial: number } | null;
   lotsVisible: boolean;
   selectedLot: LotFeature | null;
+  pins?: Pin[];
+  activePin?: number | null;
+  onPinClick?: (pin: Pin) => void;
   onLotClick: (lot: string) => void;
   onPointClick?: (coordinates: [number, number]) => void;
   onSelect: (code: string) => void;
@@ -46,6 +49,32 @@ export default function MapView(props: Props) {
   const [lotStatus, setLotStatus] = useState('');
   const [satellite, setSatellite] = useState(() => { if (/(^|[#&?])map=satellite/.test(window.location.hash + window.location.search)) return true; try { return localStorage.getItem('atlas-basemap') === 'satellite'; } catch { return false; } });
   const refreshLotsRef = useRef<() => void>(() => {});
+  const pinMarkers = useRef<maplibregl.Marker[]>([]);
+
+  // Properties sent from another app: numbered pins (pink when rated), and zoom to fit them all.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    pinMarkers.current.forEach(x => x.remove()); pinMarkers.current = [];
+    const pins = props.pins || [];
+    for (const p of pins) {
+      const el = document.createElement('button');
+      el.className = `dre-pin${p.stars ? ' rated' : ''}${props.activePin === p.n ? ' active' : ''}`;
+      el.textContent = String(p.n);
+      el.title = `${p.n}. ${p.addr || 'Property'}${p.stars ? ' ' + '★'.repeat(p.stars) : ''}`;
+      el.addEventListener('click', ev => { ev.stopPropagation(); callbacks.current.onPinClick?.(p); });
+      pinMarkers.current.push(new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m));
+    }
+  }, [props.pins, props.activePin, ready]);
+  const pinKey = (props.pins || []).map(p => `${p.lng},${p.lat}`).join('|');
+  useEffect(() => {
+    const m = map.current, pins = props.pins || [];
+    if (!m || !ready || !pins.length) return;
+    if (pins.length === 1) { m.flyTo({ center: [pins[0].lng, pins[0].lat], zoom: 17 }); return; }
+    const b = new maplibregl.LngLatBounds([pins[0].lng, pins[0].lat], [pins[0].lng, pins[0].lat]);
+    pins.forEach(p => b.extend([p.lng, p.lat]));
+    m.fitBounds(b, { padding: { top: 90, bottom: 90, left: window.innerWidth > 760 ? 420 : 40, right: 50 }, maxZoom: 16, duration: 800 });
+  }, [pinKey, ready]);
 
   useEffect(() => {
     let active = true;

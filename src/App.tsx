@@ -5,12 +5,12 @@ import LotPanel from './components/LotPanel';
 import Reports from './components/Reports';
 import type { LotSnapshot } from './lib/files';
 import { changeMilieu, selectDropdownZone, zonesForType } from './lib/zoning';
-import { DEFAULT_VIEW, readOpen, encodeView, loadAtlas, readView } from './lib/data';
+import { DEFAULT_VIEW, readOpen, readProps, encodeProps, encodeView, loadAtlas, readView } from './lib/data';
 import { searchAtlas } from './lib/search';
 import { territoryAt } from './lib/territory';
 import { useDrag } from './lib/useDrag';
 import { findLot, lotAtPoint, lotCenter, normalizeLot, streetViewUrl, type LotFeature } from './lib/lots';
-import { FAMILIES, type Metadata, type SearchResult, type ViewState, type Zone } from './lib/types';
+import { FAMILIES, type Metadata, type Pin, type SearchResult, type ViewState, type Zone } from './lib/types';
 
 const numberFormat = new Intl.NumberFormat('en-US');
 const ZONING_GUIDE = 'https://www.nyc.gov/site/planning/zoning/districts-tools.page';
@@ -18,6 +18,8 @@ const ZONING_GUIDE = 'https://www.nyc.gov/site/planning/zoning/districts-tools.p
 export default function App() {
   const [initial] = useState(readView);
   const [view, setView] = useState<ViewState>(initial);
+  const [pins, setPins] = useState<Pin[]>(() => readProps());
+  const [activePin, setActivePin] = useState<number | null>(null);
   const [zones, setZones] = useState<Zone[]>([]);
   const [metadata, setMetadata] = useState<Metadata | null>(null);
   const [error, setError] = useState('');
@@ -72,6 +74,7 @@ export default function App() {
       const next = readView(); setView(next);
       setFocus({ coordinates: [next.lng, next.lat], zoom: next.zoom, serial: Date.now() });
       const o = readOpen(); if (o.open) void openLinked(o.addr, [next.lng, next.lat]);
+      const np = readProps(); if (np.length) { setPins(np); setActivePin(null); }
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
@@ -87,8 +90,8 @@ export default function App() {
 
   useEffect(() => {
     if (!metadata) return;
-    window.history.replaceState(null, '', window.location.pathname + window.location.search + encodeView(view));
-  }, [view, metadata]);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search + encodeView(view) + encodeProps(pins));
+  }, [view, metadata, pins]);
 
   useEffect(() => {
     const current = ++searchId.current;
@@ -128,6 +131,11 @@ export default function App() {
       if (id !== lotSearchId.current) return;
       setSelectedLot(lot); setLastLot(''); setLotState(lot ? 'idle' : 'notfound');
     } catch { if (id === lotSearchId.current) setLotState('error'); }
+  }
+  function choosePin(p: Pin) {
+    setActivePin(p.n);
+    if (window.innerWidth < 760) setRailOpen(false);
+    void openLinked(p.addr, [p.lng, p.lat]);
   }
   async function openLinked(addr: string, coordinates: [number, number]) {
     const id = ++lotSearchId.current;
@@ -218,7 +226,7 @@ export default function App() {
     </header>
     <main className="workspace">
       {metadata && <MapView initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
-        lotsVisible={lotsVisible} selectedLot={selectedLot} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
+        lotsVisible={lotsVisible} selectedLot={selectedLot} pins={pins} activePin={activePin} onPinClick={choosePin} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
       {error && <div className="fatal-error" role="alert">{error}<button onClick={() => window.location.reload()}>Reload map</button></div>}
@@ -237,6 +245,10 @@ export default function App() {
           {lotState === 'nogeometry' && <div className="search-feedback">Parcel {selectedLot?.properties.LABEL} has no outline.</div>}
           {lotState === 'error' && <div className="search-feedback error" role="alert">The Florida parcel service did not respond. Try again.</div>}
           {!query && !selectedLot && <p className="search-hint">Search an address, or zoom in and click any yellow parcel.</p>}
+          {pins.length > 0 && <div className="pin-list">
+            <div className="pin-list-head"><strong>Properties sent from DRE ({pins.length})</strong><button className="text-button" onClick={() => { setPins([]); setActivePin(null); }}><X size={12}/> Clear</button></div>
+            {pins.map(p => <button key={p.n} className={`pin-row ${activePin === p.n ? 'on' : ''}`} onClick={() => choosePin(p)}><i className={`dre-pin small${p.stars ? ' rated' : ''}`}>{p.n}</i><span>{p.addr || `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}</span>{p.stars > 0 && <em>{'★'.repeat(p.stars)}</em>}</button>)}
+          </div>}
         </section>
         <details className="filters" open={filtersOpen} onToggle={e => setFiltersOpen((e.target as HTMLDetailsElement).open)}>
           <summary><Layers size={16}/> Layers & filters<span className="filters-state">{scope}{view.milieu ? ' · filtered' : ''}</span><ChevronDown size={14}/></summary>
