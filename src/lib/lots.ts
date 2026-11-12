@@ -99,10 +99,39 @@ export interface Sale { price: number; year: number; month: number | null; date:
 
 /** Full sale history from county property appraisers that publish it as open GIS data. */
 export const SALES_COUNTIES: Record<string, string> = { 'Broward County': 'Broward County Property Appraiser (last 5 deeds)', 'Lee County': 'Lee County Property Appraiser (last 4 deeds)',
-  'Orange County': 'Orange County Property Appraiser (every sale since 2022, with buyer and seller)' };
+  'Orange County': 'Orange County Property Appraiser (every sale since 2022, with buyer and seller)',
+  'Pinellas County': 'Pinellas County Property Appraiser (every sale since 2022)', 'Miami-Dade County': 'Miami-Dade Property Appraiser (last 3 transfers, with buyer and seller)',
+  'Bay County': 'Bay County Property Appraiser (last 3 deeds)', 'Leon County': 'Leon County Property Appraiser (every sale since January 2024, with buyer and seller)',
+  'Okaloosa County': 'Okaloosa County Property Appraiser (latest 3 sales)', 'Walton County': 'Walton County Property Appraiser (latest sale only)',
+  'Washington County': 'Washington County Property Appraiser (latest sale only)', 'Jackson County': 'Jackson County Property Appraiser (latest sale only)',
+  'Suwannee County': 'Suwannee County Property Appraiser (latest sale only)' };
 const BROWARD = 'https://services.arcgis.com/JMAJrTsHNLrSsWf5/arcgis/rest/services/PARCEL_POLY_BCPA_TAXROLL/FeatureServer/0/query';
 const LEE = 'https://services2.arcgis.com/LvWGAAhHwbCJ2GMP/arcgis/rest/services/Lee_County_Parcels/FeatureServer/0/query';
 const ORANGE = 'https://vgispublic.ocpafl.org/server/rest/services/DYNAMIC/Dynamic_Layers/MapServer/14/query';
+const MDADE = 'https://gisweb.miamidade.gov/arcgis/rest/services/MD_ComparableSales/MapServer/5/query';
+const PINELLAS_SALES = ['SalesCurrentYear', 'SalesYearMinusOne', 'SalesYearMinusTwo', 'SalesYearMinusThree', 'SalesYearMinusFour']
+  .map(n => `https://egis.pinellas.gov/pcpagis/rest/services/Pcpao_gov/${n}/MapServer/0/query`);
+const BAY = 'https://gis.baycountyfl.gov/arcgis/rest/services/Hosted/Parcels/FeatureServer/0/query';
+const LEON_SALES = [0, 1, 2].map(i => `https://intervector.leoncountyfl.gov/intervector/rest/services/MapServices/LCPA_Last3YearsSales_D_WM/MapServer/${i}/query`);
+const OKALOOSA = 'https://okgis.myokaloosa.com/arcgis/rest/services/LocalGovernment/AssessmentInformation/MapServer/327/query';
+/** Counties whose open GIS carries only the latest sale (date `dos`, price `price`). */
+const LATEST_ONLY: Record<string, string> = {
+  'Walton County': 'https://gis11.cama.io/arcgis/rest/services/Walton/WaltonCounty_Thematic2/MapServer/1/query',
+  'Washington County': 'https://gis11.cama.io/arcgis/rest/services/Washington/WashingtonCounty_Basemap/MapServer/0/query',
+  'Jackson County': 'https://gis2.cama.io/arcgis/rest/services/Jackson/JacksonCounty_Basemap/MapServer/0/query',
+  'Suwannee County': 'https://gis2.cama.io/arcgis/rest/services/Suwannee/SuwanneeCounty_Thematic_214/MapServer/1/query' };
+/** Like arc(), but keeps each feature's point so the nearest one can be chosen (point layers hold one point per parcel or sale). */
+async function arcPts(url: string, params: Record<string, string>) {
+  const r = await fetch(`${url}?${new URLSearchParams({ returnGeometry: 'true', outSR: '4326', f: 'json', ...params })}`);
+  const d = await r.json();
+  return (d.features || []).map((f: { attributes: Record<string, unknown>; geometry?: { x?: number; y?: number } }) => ({ a: f.attributes, x: f.geometry?.x ?? NaN, y: f.geometry?.y ?? NaN }));
+}
+const nearestTo = <T extends { x: number; y: number }>(rows: T[], [lng, lat]: [number, number]) =>
+  rows.length ? rows.reduce((b, r) => (r.x - lng) ** 2 + (r.y - lat) ** 2 < (b.x - lng) ** 2 + (b.y - lat) ** 2 ? r : b) : null;
+/** 'YYYYMMDD' / 'YYYY-MM-DD' (string or number) to epoch-ms (UTC). */
+const ymdMs = (v: unknown) => { const m = String(v ?? '').trim().match(/^(\d{4})-?(\d{2})-?(\d{2})/); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+const text = (v: unknown) => { const x = v == null ? '' : String(v).trim(); return x && x !== '0' && x !== 'N_A' ? x : null; };
+const byDateDesc = (list: Sale[]) => list.sort((a, b) => b.year - a.year || (b.month || 0) - (a.month || 0) || (b.day || 0) - (a.day || 0));
 async function arc(url: string, params: Record<string, string>) {
   const r = await fetch(`${url}?${new URLSearchParams({ returnGeometry: 'false', f: 'json', ...params })}`);
   const d = await r.json();
@@ -136,6 +165,51 @@ export async function countySales(unit: Unit, center: [number, number] | null): 
     const rows = await arc(ORANGE, { where: `PARCEL='${pid}'`, outFields: 'SALE_DATE,SALE_AMT,DEED_DESCERITION,GRANTOR,GRANTEE,BOOK,PAGE,INSTR_NUM,VAC_IMPR_CODE,SALE_TYPE', orderByFields: 'SALE_DATE DESC' });
     return rows.map(a => dated(a.SALE_DATE, n(a.SALE_AMT), { deed: s(a.DEED_DESCERITION), seller: s(a.GRANTOR), buyer: s(a.GRANTEE), book: s(a.BOOK), page: s(a.PAGE),
       instrument: s(a.INSTR_NUM), vacant: a.VAC_IMPR_CODE === 'V', qualified: true })).filter(Boolean) as Sale[];
+  }
+  if (unit.county === 'Miami-Dade County' && center) {
+    const rows = await arcPts(MDADE, { ...at(center), distance: '25', units: 'esriSRUnit_Meter', outFields: '*' });
+    const id = (unit.sbl || '').replace(/\D/g, '');
+    const row = rows.find((r: { a: Record<string, unknown> }) => String(r.a.FOLIO) === id) || nearestTo(rows, center);
+    if (!row) return null;
+    const a = row.a;
+    return byDateDesc([1, 2, 3].map(i => { const ms = ymdMs(a[`DOS_${i}`]); return ms === null ? null : dated(ms, n(a[`PRICE_${i}`]), { book: text(a[`OR_BK_${i}`]), page: text(a[`OR_PG_${i}`]),
+      qualified: a[`QU_FLG_${i}`] === 'Q', code: text(a[`QU_FLG_${i}`]) || '', vacant: a[`VI_${i}`] === 'V', seller: text(a[`GRANTOR_${i}`]), buyer: text(a[`GRANTEE_${i}`]) }); }).filter(Boolean) as Sale[]);
+  }
+  if (unit.county === 'Pinellas County' && center) {
+    // One point per sale, one layer per calendar year (this year and the four before). Pick the parcel (STRAP) nearest the lot, then merge its sales.
+    const all = (await Promise.all(PINELLAS_SALES.map(u => arcPts(u, { ...at(center), distance: '15', units: 'esriSRUnit_Meter', outFields: 'STRAP,DOS,SALE_PRICE,QUALIFIED_FLG' }).catch(() => [])))).flat();
+    const near = nearestTo(all, center);
+    if (!near) return [];
+    const seen = new Set<string>();
+    return byDateDesc(all.filter((r: { a: Record<string, unknown> }) => r.a.STRAP === near.a.STRAP).map((r: { a: Record<string, unknown> }) => dated(r.a.DOS, n(r.a.SALE_PRICE), { qualified: String(r.a.QUALIFIED_FLG || '').toUpperCase().startsWith('Q'), code: text(r.a.QUALIFIED_FLG) || '' }))
+      .filter((x: Sale | null): x is Sale => { if (!x) return false; const k = `${x.date}|${x.price}`; if (seen.has(k)) return false; seen.add(k); return true; }));
+  }
+  if (unit.county === 'Bay County' && center) {
+    const rec = (await arc(BAY, { ...at(center), outFields: '*' }))[0];
+    if (!rec) return null;
+    const a: Record<string, unknown> = {}; for (const k of Object.keys(rec)) a[k.toLowerCase()] = rec[k]; // field-name case differs between Bay's services
+    return byDateDesc([1, 2, 3].map(i => {
+      const ms = ymdMs(a[`sale${i}date`]); if (ms === null) return null;
+      const inst = String(a[`sale${i}inst`] || ''), m = inst.match(/ORB-(\d+)\s+PG-(\d+)\s*([A-Z]{2})?/), qv = String(a[`sale${i}qu_vi`] || '');
+      return dated(ms, n(a[`sale${i}pradj`]), { book: m?.[1] || null, page: m?.[2] || null, deed: m?.[3] || null, qualified: qv.trim().startsWith('Q'), code: qv.trim()[0] || '', vacant: /V\s*$/.test(qv) });
+    }).filter(Boolean) as Sale[]);
+  }
+  if (unit.county === 'Leon County' && unit.sbl) {
+    // One row per sale in three yearly layers (2024 on); the sales are keyed by the same parcel id as the state roll.
+    const rows = (await Promise.all(LEON_SALES.map(u => arc(u, { where: `SALES_PARID='${unit.sbl!.replace(/'/g, "''")}'`, outFields: '*' }).catch(() => [])))).flat();
+    return byDateDesc(rows.map(a => dated(a.SALES_SALEDT, n(a.SALES_PRICE), { deed: text(a.SALES_INSTRTYP), book: text(a.SALES_BOOK), page: text(a.SALES_PAGE), seller: text(a.SALES_OLDOWN), buyer: text(a.SALES_OWN1),
+      vacant: a.SALES_SALETYPE === 'V', qualified: true })).filter(Boolean) as Sale[]);
+  }
+  if (unit.county === 'Okaloosa County' && center) {
+    const a = (await arc(OKALOOSA, { ...at(center), outFields: 'PATPCL_SALE1,PATPCL_SALEDT1,PATPCL_QUAL1,PATPCL_SALE2,PATPCL_SALEDT2,PATPCL_SALE3,PATPCL_SALEDT3' }))[0];
+    if (!a) return null;
+    return byDateDesc([1, 2, 3].map(i => { const ms = ymdMs(a[`PATPCL_SALEDT${i}`]); return ms === null ? null : dated(ms, n(a[`PATPCL_SALE${i}`]), i === 1 ? { qualified: a.PATPCL_QUAL1 === 'Q', code: text(a.PATPCL_QUAL1) || '' } : {}); }).filter(Boolean) as Sale[]);
+  }
+  const latest = unit.county ? LATEST_ONLY[unit.county] : undefined;
+  if (latest && center) {
+    const a = (await arc(latest, { ...at(center), outFields: 'dos,price' }))[0];
+    const ms = a ? ymdMs(a.dos) : null;
+    return ms === null ? null : [dated(ms, n(a!.price), {})!];
   }
   return null;
 }

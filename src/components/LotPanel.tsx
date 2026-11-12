@@ -30,6 +30,7 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [copied, setCopied] = useState(false);
   // The chosen tab stays open as you move from parcel to parcel; the map reads it to tailor the hover label.
+  const [showOlder, setShowOlder] = useState(false);
   const [tab, setTabState] = useState<'overview' | 'owner' | 'sales' | 'infra' | 'lot'>(() => (document.body.dataset.lotTab as 'sales') || 'overview');
   const setTab = (t: typeof tab) => { document.body.dataset.lotTab = t; setTabState(t); };
   useEffect(() => () => { delete document.body.dataset.lotTab; }, []);
@@ -167,15 +168,23 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     </div>}
 
     {unit && tab === 'sales' && <div className="tab-body">
-      <div className="sales"><b>Sales history{unit.sales?.length ? ` · ${unit.sales.length} sale${unit.sales.length > 1 ? 's' : ''}` : ''}</b>
-        {history === 'loading' && <p className="detail-foot">Loading the county’s full sales history…</p>}
-        {unit.sales?.length ? unit.sales.map((x, i) => <div key={i}><span>{x.date}</span><strong>{x.nominal ? 'Nominal' : money(x.price)}</strong>
+      {(() => {
+        const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 5);
+        const recent = (unit.sales || []).filter(x => x.year > cutoff.getFullYear() || (x.year === cutoff.getFullYear() && (x.month || 12) >= cutoff.getMonth() + 1));
+        const older = (unit.sales || []).filter(x => !recent.includes(x));
+        const row = (x: Sale, i: number) => <div key={i}><span>{x.date}</span><strong>{x.nominal ? 'Nominal' : money(x.price)}</strong>
           <small>{[x.deed, x.nominal ? 'non-cash transfer' : x.qualified ? 'arm’s-length sale' : x.code ? 'not qualified' : '', x.vacant ? 'vacant' : '',
             x.book && x.page ? `OR ${x.book}/${x.page}` : x.instrument ? `Instr. ${x.instrument}` : ''].filter(Boolean).join(' · ')}
-            {(x.seller || x.buyer) && <><br/>{x.seller && <>From {x.seller}</>}{x.seller && x.buyer && ' → '}{x.buyer && <>to {x.buyer}</>}</>}</small></div>)
-          : history !== 'loading' && <p className="detail-foot">No sale in the last two years on the state tax roll.</p>}
-        <p className="detail-foot">{countySource ? <>Source: {countySource}. </> : <>The state roll only carries sales from the last two roll years (up to two per parcel). </>}Every older sale and deed is on the {links?.roll ? <a href={links.roll} target="_blank" rel="noreferrer">property appraiser’s sales tab <ArrowUpRight size={10}/></a> : 'property appraiser’s sales tab'} and in the clerk’s official records.</p>
-      </div>
+            {(x.seller || x.buyer) && <><br/>{x.seller && <>From {x.seller}</>}{x.seller && x.buyer && ' → '}{x.buyer && <>to {x.buyer}</>}</>}</small></div>;
+        return <div className="sales"><b>Sales history · last 5 years{recent.length ? ` · ${recent.length} sale${recent.length > 1 ? 's' : ''}` : ''}</b>
+          {history === 'loading' && <p className="detail-foot">Loading the county’s sales history…</p>}
+          {recent.map(row)}
+          {history !== 'loading' && !recent.length && <p className="detail-foot">No sale in the last 5 years in the data this atlas can read{older.length ? ' (older sales below).' : '.'}</p>}
+          {older.length > 0 && <button className="text-button" style={{ margin: '8px 0' }} onClick={() => setShowOlder(v => !v)}>{showOlder ? 'Hide' : 'Show'} {older.length} older sale{older.length > 1 ? 's' : ''}</button>}
+          {showOlder && older.map(row)}
+          <p className="detail-foot">{countySource ? <>Source: {countySource}. </> : <>The state roll carries only the two most recent sales{unit0?.county ? `, and ${unit0.county} does not publish a longer history as open data` : ''}. </>}Every older sale and deed is on the {links?.roll ? <a href={links.roll} target="_blank" rel="noreferrer">property appraiser’s sales tab <ArrowUpRight size={10}/></a> : 'property appraiser’s sales tab'} and in the clerk’s official records.</p>
+        </div>;
+      })()}
     </div>}
 
     {unit && tab === 'infra' && <div className="tab-body infra">
