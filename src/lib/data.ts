@@ -29,6 +29,12 @@ export function readView(hash = window.location.hash): ViewState {
     zoneFilter: (p.get('filter') || '').slice(0, 30), activity: (p.get('use') || '').slice(0, 50), visible: p.get('layer') !== 'off' };
 }
 
+/** A link can ask the atlas to open the parcel at its coordinates: `#lng=…&lat=…&open=1&addr=123+Main+St`. */
+export function readOpen(hash = window.location.hash): { open: boolean; addr: string } {
+  const p = new URLSearchParams(hash.replace(/^#/, ''));
+  return { open: p.get('open') === '1', addr: (p.get('addr') || '').slice(0, 160) };
+}
+
 export function encodeView(view: ViewState): string {
   const p = new URLSearchParams({ lng: view.lng.toFixed(6), lat: view.lat.toFixed(6), z: view.zoom.toFixed(2) });
   if (view.zone) p.set('zone', view.zone);

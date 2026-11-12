@@ -5,7 +5,7 @@ import LotPanel from './components/LotPanel';
 import Reports from './components/Reports';
 import type { LotSnapshot } from './lib/files';
 import { changeMilieu, selectDropdownZone, zonesForType } from './lib/zoning';
-import { DEFAULT_VIEW, encodeView, loadAtlas, readView } from './lib/data';
+import { DEFAULT_VIEW, readOpen, encodeView, loadAtlas, readView } from './lib/data';
 import { searchAtlas } from './lib/search';
 import { territoryAt } from './lib/territory';
 import { useDrag } from './lib/useDrag';
@@ -44,6 +44,8 @@ export default function App() {
   const detailDrag = useDrag('detail');
   const railDrag = useDrag('rail');
   const lotSearchId = useRef(0);
+  const linkedOpen = useRef(readOpen()); // read before the view effect rewrites the hash
+  const linkedDone = useRef(false);
   const searchId = useRef(0);
   const [scope, setScope] = useState('');
   const zoneCity = (z: Zone) => z.city || 'New York City';
@@ -69,10 +71,19 @@ export default function App() {
     const onHash = () => {
       const next = readView(); setView(next);
       setFocus({ coordinates: [next.lng, next.lat], zoom: next.zoom, serial: Date.now() });
+      const o = readOpen(); if (o.open) void openLinked(o.addr, [next.lng, next.lat]);
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+
+  // A link with open=1 (e.g. from the DRE app) opens the parcel card at those coordinates, like clicking the parcel.
+  useEffect(() => {
+    if (!metadata || linkedDone.current || !linkedOpen.current.open) return;
+    linkedDone.current = true;
+    const v = readView();
+    void openLinked(linkedOpen.current.addr, [v.lng, v.lat]);
+  }, [metadata]);
 
   useEffect(() => {
     if (!metadata) return;
@@ -116,6 +127,19 @@ export default function App() {
       const lot = await lotAtPoint(result.coordinates, undefined, result.title);
       if (id !== lotSearchId.current) return;
       setSelectedLot(lot); setLastLot(''); setLotState(lot ? 'idle' : 'notfound');
+    } catch { if (id === lotSearchId.current) setLotState('error'); }
+  }
+  async function openLinked(addr: string, coordinates: [number, number]) {
+    const id = ++lotSearchId.current;
+    setLotState('loading'); setLotsVisible(true);
+    setSelectedAddress(addr); setAddressCoordinates(addr ? coordinates : null);
+    try {
+      const lot = await lotAtPoint(coordinates, undefined, addr);
+      if (id !== lotSearchId.current) return;
+      if (!lot) { setLotState('notfound'); return; }
+      setSelectedLot(lot); setLastLot(''); setLotState('idle');
+      const center = lotCenter(lot);
+      if (center) { void scopeAt(center, true); setFocus({ coordinates: center, zoom: 18, serial: Date.now() }); }
     } catch { if (id === lotSearchId.current) setLotState('error'); }
   }
   async function lotAt(coordinates: [number, number]) {
