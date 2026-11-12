@@ -12,7 +12,7 @@ export function normalizeLot(_input: string): string {
   return '';
 }
 
-const LIGHT = 'OBJECTID,PARCEL_ID';
+const LIGHT = 'OBJECTID,PARCEL_ID,PHY_ADDR1,SALE_PRC1,SALE_YR1,SALE_MO1,SALE_PRC2,SALE_YR2,SALE_MO2';
 const cache = new Map<string, LotFeature>();
 async function query(params: Record<string, string>, signal?: AbortSignal): Promise<FeatureCollection<Geometry | null, ParcelProps>> {
   const body = new URLSearchParams({ outFields: '*', outSR: '4326', f: 'geojson', ...params });

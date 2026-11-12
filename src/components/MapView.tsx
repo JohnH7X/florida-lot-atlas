@@ -143,10 +143,11 @@ export default function MapView(props: Props) {
             const id = String(p.NO_LOT);
             instance.getCanvas().style.cursor = 'pointer';
             tip.setLngLat(e.lngLat);
-            if (id === hovered) return;
-            hovered = id;
+            const mode = document.body.dataset.lotTab || '';
+            if (id + mode === hovered) return;
+            hovered = id + mode;
             instance.setFilter('lot-hover', ['==', ['get', 'NO_LOT'], id]);
-            tip.setHTML(`<b>Parcel ${String(p.LABEL || p.NO_LOT).replace(/[<>&]/g, '')}</b><br><small>Click for owner, value & sales</small>`).addTo(instance);
+            tip.setHTML(hoverHtml(p)).addTo(instance);
           });
           instance.getContainer().addEventListener('mouseleave', clearHover);
           instance.on('dragstart', clearHover);
@@ -274,4 +275,17 @@ export default function MapView(props: Props) {
     {lotStatus && <div className="lot-status" role="status">{lotStatus}</div>}
     <div className="map-caption"><span className="live-dot" /> MUNICIPAL OPEN DATA <span className="caption-divider">/</span> MONTRÉAL, QUÉBEC</div>
   </div>;
+}
+
+const esc = (v: unknown) => String(v ?? '').replace(/[<>&"]/g, '');
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Hover label: parcel and address; with the Sales tab open, the parcel's recent sales from the state roll. */
+function hoverHtml(p: Record<string, unknown>) {
+  const head = `<b>Parcel ${esc(p.LABEL || p.NO_LOT)}</b>${p.PHY_ADDR1 && !/^UNASSIGNED/i.test(String(p.PHY_ADDR1)) ? `<br>${esc(p.PHY_ADDR1)}` : ''}`;
+  if (document.body.dataset.lotTab !== 'sales') return `${head}<br><small>Click for owner, value & sales</small>`;
+  const rows = [1, 2].map(i => ({ price: Number(p[`SALE_PRC${i}`]) || 0, yr: Number(p[`SALE_YR${i}`]) || 0, mo: Number(p[`SALE_MO${i}`]) || 0 })).filter(r => r.yr);
+  const body = rows.length
+    ? rows.map(r => `<div class="tip-sale"><span>${r.mo ? MONTHS[r.mo - 1] + ' ' : ''}${r.yr}</span><b>${r.price > 100 ? '$' + r.price.toLocaleString('en-US') : 'Nominal'}</b></div>`).join('')
+    : '<small>No sale in the last two roll years</small>';
+  return `${head}${body}<small>Click for full sales history</small>`;
 }
