@@ -245,3 +245,21 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .pin-row:hover,.pin-row.on{background:#eef2e9}
 .pin-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pin-row em{font-style:normal;color:#db2777;font-size:10px;flex:none}
+
+/* Numbered teardrop pins (point down) for properties sent from another app */
+.dre-tear-wrap{width:30px;height:38px;cursor:pointer}
+.dre-tear{position:absolute;left:3px;top:2px;width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#2f5d4a;border:2px solid #fff;box-shadow:0 2px 6px #0006;padding:0;display:flex;align-items:center;justify-content:center}
+.dre-tear span{transform:rotate(45deg);color:#fff;font:700 11px/1 'DM Sans',sans-serif}
+.dre-tear.rated{background:#db2777}
+.dre-tear.active{outline:3px solid #ffd400;outline-offset:1px}
+
+/* Latest-sale colour scale */
+.sale-scale{position:absolute;right:24px;bottom:118px;width:186px;background:var(--paper);border:1px solid #e0e4dc;border-radius:8px;padding:10px 12px;box-shadow:0 4px 16px #1d392414;font-size:11px;color:#314735;z-index:2}
+.sale-scale-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sale-scale ul{list-style:none;margin:0 0 6px;padding:0;display:grid;gap:5px}
+.sale-scale li{display:flex;align-items:center;gap:8px}
+.sale-scale li b{margin-left:auto;font-weight:600;color:#556a50;font-variant-numeric:tabular-nums}
+.sale-scale li i{width:14px;height:14px;border-radius:3px;display:block;opacity:.85}
+.sale-scale li i.none{background:transparent;border:1.5px solid #f2c200}
+.sale-scale small{display:block;font-size:9px;color:#8b967f}
+@media(max-width:760px){.sale-scale{right:12px;bottom:96px;width:160px}}

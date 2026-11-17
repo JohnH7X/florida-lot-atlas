@@ -71,8 +71,9 @@ export default function App() {
       setCityLinks(byName);
     })).catch(() => undefined);
     const onHash = () => {
-      const next = readView(); setView(next);
-      setFocus({ coordinates: [next.lng, next.lat], zoom: next.zoom, serial: Date.now() });
+      const next = readView();
+      // A link that only carries properties (no lng/lat) must not reset the view: the map fits to those properties instead.
+      if (/(^|[#&])lng=/.test(window.location.hash) || !readProps().length) { setView(next); setFocus({ coordinates: [next.lng, next.lat], zoom: next.zoom, serial: Date.now() }); }
       const o = readOpen(); if (o.open) void openLinked(o.addr, [next.lng, next.lat]);
       const np = readProps(); if (np.length) { setPins(np); setActivePin(null); }
     };

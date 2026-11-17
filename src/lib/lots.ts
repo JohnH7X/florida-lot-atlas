@@ -371,3 +371,13 @@ export function lotEdges(feature: LotFeature): LotEdge[] {
   }).filter(e => e.length >= 0.5);
 }
 export const FT_PER_M = 3.28084;
+
+export type SaleBand = 's2026' | 's2025' | 'sOlder' | 'none';
+/** The lot's latest sale on the state roll (SALE_*1 / SALE_*2): its year band for the map colours and a short price label. */
+export function saleBandOf(p: Record<string, unknown>): { band: SaleBand; text: string; year: number } {
+  const cand = [1, 2].map(i => ({ y: Number(p[`SALE_YR${i}`]) || 0, m: Number(p[`SALE_MO${i}`]) || 0, price: Number(p[`SALE_PRC${i}`]) || 0 }))
+    .filter(c => c.y >= 1900).sort((a, b) => b.y - a.y || b.m - a.m)[0];
+  if (!cand) return { band: 'none', text: '', year: 0 };
+  const price = cand.price <= 100 ? 'Transfer' : cand.price >= 1e6 ? `$${(cand.price / 1e6).toFixed(cand.price >= 1e7 ? 0 : 2).replace(/\.?0+$/, '')}M` : cand.price >= 1000 ? `$${Math.round(cand.price / 1000)}K` : `$${cand.price}`;
+  return { band: cand.y >= 2026 ? 's2026' : cand.y === 2025 ? 's2025' : 'sOlder', text: `${price} · ${cand.y}`, year: cand.y };
+}

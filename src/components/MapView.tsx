@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { FAMILIES, type MapPosition, type Pin, type ViewState, type Zone } from '../lib/types';
 import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
-import { FT_PER_M, LOT_MIN_ZOOM, lotEdges, lotsInBounds, streetViewUrl, type LotFeature } from '../lib/lots';
+import { FT_PER_M, LOT_MIN_ZOOM, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
 
 interface Props {
   initial: ViewState;
@@ -50,6 +50,8 @@ export default function MapView(props: Props) {
   const [satellite, setSatellite] = useState(() => { if (/(^|[#&?])map=satellite/.test(window.location.hash + window.location.search)) return true; try { return localStorage.getItem('atlas-basemap') === 'satellite'; } catch { return false; } });
   const refreshLotsRef = useRef<() => void>(() => {});
   const pinMarkers = useRef<maplibregl.Marker[]>([]);
+  const [saleColors, setSaleColors] = useState(() => { try { return localStorage.getItem('atlas-sale-colors') !== '0'; } catch { return true; } });
+  const [saleCounts, setSaleCounts] = useState<{ s2026: number; s2025: number; sOlder: number; none: number } | null>(null);
 
   // Properties sent from another app: numbered pins (pink when rated), and zoom to fit them all.
   useEffect(() => {
@@ -58,12 +60,16 @@ export default function MapView(props: Props) {
     pinMarkers.current.forEach(x => x.remove()); pinMarkers.current = [];
     const pins = props.pins || [];
     for (const p of pins) {
-      const el = document.createElement('button');
-      el.className = `dre-pin${p.stars ? ' rated' : ''}${props.activePin === p.n ? ' active' : ''}`;
-      el.textContent = String(p.n);
+      // A teardrop pin pointing down; MapLibre moves the outer element, so the tilt lives on the inner shape.
+      const el = document.createElement('div');
+      el.className = 'dre-tear-wrap';
+      const shape = document.createElement('button');
+      shape.className = `dre-tear${p.stars ? ' rated' : ''}${props.activePin === p.n ? ' active' : ''}`;
+      const num = document.createElement('span'); num.textContent = String(p.n); shape.appendChild(num);
+      el.appendChild(shape);
       el.title = `${p.n}. ${p.addr || 'Property'}${p.stars ? ' ' + '★'.repeat(p.stars) : ''}`;
       el.addEventListener('click', ev => { ev.stopPropagation(); callbacks.current.onPinClick?.(p); });
-      pinMarkers.current.push(new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m));
+      pinMarkers.current.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(m));
     }
   }, [props.pins, props.activePin, ready]);
   const pinKey = (props.pins || []).map(p => `${p.lng},${p.lat}`).join('|');
@@ -136,10 +142,16 @@ export default function MapView(props: Props) {
           instance.addSource('lots', { type: 'geojson', data: empty });
           instance.addSource('lot-selected', { type: 'geojson', data: empty });
           instance.addLayer({ id: 'lot-hit', type: 'fill', source: 'lots', paint: { 'fill-color': '#000', 'fill-opacity': 0 } });
+          // Each lot is filled by the year of its latest sale: 2026, 2025, 2024 and older (lots with no recorded sale stay clear).
+          instance.addLayer({ id: 'lot-sale-fill', type: 'fill', source: 'lots', paint: { 'fill-opacity': 0.42,
+            'fill-color': ['match', ['get', 'saleBand'], 's2026', '#d6336c', 's2025', '#14a37f', 'sOlder', '#3b6fd4', 'rgba(0,0,0,0)'] } });
           instance.addLayer({ id: 'lot-line', type: 'line', source: 'lots', paint: { 'line-color': '#f2c200', 'line-width': ['interpolate', ['linear'], ['zoom'], 15.5, 1, 18, 2.2] } });
           if (instance.getStyle().glyphs) instance.addLayer({ id: 'lot-label', type: 'symbol', source: 'lots', minzoom: 17,
-            layout: { 'text-field': ['get', 'LABEL'], 'text-size': 11, 'text-font': ['Noto Sans Regular'] },
+            layout: { 'text-field': ['get', 'LABEL'], 'text-size': 11, 'text-font': ['Noto Sans Regular'], 'text-offset': [0, 0.9] },
             paint: { 'text-color': '#5a4700', 'text-halo-color': '#fff8d6', 'text-halo-width': 1.4 } });
+          if (instance.getStyle().glyphs) instance.addLayer({ id: 'lot-sale-label', type: 'symbol', source: 'lots', minzoom: 16.6, filter: ['!=', ['get', 'saleBand'], 'none'],
+            layout: { 'text-field': ['get', 'saleText'], 'text-size': ['interpolate', ['linear'], ['zoom'], 16.6, 9, 19, 12], 'text-font': ['Noto Sans Regular'], 'text-offset': [0, -0.7], 'text-allow-overlap': true },
+            paint: { 'text-color': '#12263a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } });
           instance.addLayer({ id: 'lot-selected-fill', type: 'fill', source: 'lot-selected', paint: { 'fill-color': '#f2c200', 'fill-opacity': 0.28 } });
           instance.addLayer({ id: 'lot-selected-line', type: 'line', source: 'lot-selected', paint: { 'line-color': '#f2c200', 'line-width': 4 } });
           // Side lengths of every lot in view (close zoom only), in small type; the selected lot's are larger.
@@ -222,6 +234,7 @@ export default function MapView(props: Props) {
       const source = m.getSource('lots') as maplibregl.GeoJSONSource;
       if (!callbacks.current.lotsVisible || m.getZoom() < LOT_MIN_ZOOM) {
         source.setData({ type: 'FeatureCollection', features: [] });
+        setSaleCounts(null);
         (m.getSource('lot-all-dims') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: [] });
         setLotStatus(callbacks.current.lotsVisible ? (m.getZoom() >= 13 ? 'Click any spot to open its parcel, or zoom in to see outlines' : 'Zoom in to see tax parcels') : '');
         return;
@@ -231,7 +244,12 @@ export default function MapView(props: Props) {
       setLotStatus('Loading tax parcels…');
       lotsInBounds([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], controller.signal).then(data => {
         if (controller.signal.aborted) return;
-        const lots = data.features.filter(f => f.geometry);
+        const counts = { s2026: 0, s2025: 0, sOlder: 0, none: 0 };
+        const lots = data.features.filter(f => f.geometry).map(f => {
+          const sb = saleBandOf(f.properties as Record<string, unknown>); counts[sb.band === 'none' ? 'none' : sb.band]++;
+          return { ...f, properties: { ...f.properties, saleBand: sb.band, saleText: sb.text } };
+        });
+        setSaleCounts(counts);
         source.setData({ ...data, features: lots } as FeatureCollection);
         (m.getSource('lot-all-dims') as maplibregl.GeoJSONSource | undefined)?.setData(edgeLabels(lots as LotFeature[], e => e.length >= 3 ? `${(e.length * FT_PER_M).toFixed(0)} ft` : ''));
         setLotStatus('');
@@ -297,11 +315,26 @@ export default function MapView(props: Props) {
     }
   }, [props.addressCoordinates, ready]);
 
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const id of ['lot-sale-fill', 'lot-sale-label']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', saleColors ? 'visible' : 'none');
+    try { localStorage.setItem('atlas-sale-colors', saleColors ? '1' : '0'); } catch { /* ignore */ }
+  }, [saleColors, ready]);
   return <div className="map-wrap"><div ref={host} className="map-canvas" aria-label="Interactive Florida parcel map" />
     {!ready && !message && <div className="map-message">Loading map…</div>}
     {message && <div className={`map-message ${message.startsWith('Basemap') ? 'subtle' : ''}`} role="status">{message}</div>}
     {ready && <div className="basemap-switch" role="group" aria-label="Basemap"><button className={satellite ? '' : 'on'} aria-pressed={!satellite} onClick={() => setSatellite(false)}>Map</button><button className={satellite ? 'on' : ''} aria-pressed={satellite} onClick={() => setSatellite(true)}>Satellite</button></div>}
     {lotStatus && <div className="lot-status" role="status">{lotStatus}</div>}
+    {ready && saleCounts && <div className="sale-scale" role="group" aria-label="Latest sale colours">
+      <div className="sale-scale-head"><strong>Latest sale</strong><button className={`toggle ${saleColors ? 'on' : ''}`} role="switch" aria-checked={saleColors} aria-label="Colour lots by latest sale" onClick={() => setSaleColors(v => !v)}><span/></button></div>
+      {saleColors && <ul>
+        <li><i style={{ background: '#d6336c' }}/>2026<b>{saleCounts.s2026}</b></li>
+        <li><i style={{ background: '#14a37f' }}/>2025<b>{saleCounts.s2025}</b></li>
+        <li><i style={{ background: '#3b6fd4' }}/>2024 and older<b>{saleCounts.sOlder}</b></li>
+        <li><i className="none"/>No sale on the roll<b>{saleCounts.none}</b></li>
+      </ul>}
+      <small>Lots in view. The state tax roll carries only the 2025 and 2026 sales; older ones show where a county publishes them.</small>
+    </div>}
     <div className="map-caption"><span className="live-dot" /> MUNICIPAL OPEN DATA <span className="caption-divider">/</span> MONTRÉAL, QUÉBEC</div>
   </div>;
 }
