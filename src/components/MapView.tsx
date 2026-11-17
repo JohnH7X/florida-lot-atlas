@@ -4,7 +4,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { FAMILIES, type MapPosition, type Pin, type ViewState, type Zone } from '../lib/types';
 import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
-import { FT_PER_M, LOT_MIN_ZOOM, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
+import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
+import { countySalesForLots } from '../lib/countySalesBulk';
 
 interface Props {
   initial: ViewState;
@@ -244,14 +245,24 @@ export default function MapView(props: Props) {
       setLotStatus('Loading tax parcels…');
       lotsInBounds([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], controller.signal).then(data => {
         if (controller.signal.aborted) return;
-        const counts = { s2026: 0, s2025: 0, sOlder: 0, none: 0 };
-        const lots = data.features.filter(f => f.geometry).map(f => {
-          const sb = saleBandOf(f.properties as Record<string, unknown>); counts[sb.band === 'none' ? 'none' : sb.band]++;
-          return { ...f, properties: { ...f.properties, saleBand: sb.band, saleText: sb.text } };
-        });
-        setSaleCounts(counts);
-        source.setData({ ...data, features: lots } as FeatureCollection);
-        (m.getSource('lot-all-dims') as maplibregl.GeoJSONSource | undefined)?.setData(edgeLabels(lots as LotFeature[], e => e.length >= 3 ? `${(e.length * FT_PER_M).toFixed(0)} ft` : ''));
+        const base = data.features.filter(f => f.geometry);
+        const paint = (extra?: Map<number, { ms: number; price: number }[]>) => {
+          const counts = { s2026: 0, s2025: 0, sOlder: 0, none: 0 };
+          const lots = base.map((f, i) => {
+            let sb = saleBandOf(f.properties as Record<string, unknown>);
+            // County sales (older than the state roll carries) can only make a lot's latest sale newer or fill an empty one.
+            for (const c of extra?.get(i) || []) { const y = new Date(c.ms).getUTCFullYear(); if (y > sb.year) sb = bandOfSale(y, c.price); }
+            counts[sb.band]++;
+            return { ...f, properties: { ...f.properties, saleBand: sb.band, saleText: sb.text } };
+          });
+          setSaleCounts(counts);
+          source.setData({ ...data, features: lots } as FeatureCollection);
+        };
+        paint();
+        // Then add each lot's latest sale from the county's own open GIS where it publishes sales for a whole map view.
+        void countySalesForLots(base as LotFeature[], [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], controller.signal)
+          .then(extra => { if (!controller.signal.aborted && extra.size) paint(extra); }).catch(() => undefined);
+        (m.getSource('lot-all-dims') as maplibregl.GeoJSONSource | undefined)?.setData(edgeLabels(base as LotFeature[], e => e.length >= 3 ? `${(e.length * FT_PER_M).toFixed(0)} ft` : ''));
         setLotStatus('');
       }).catch(() => { if (!controller.signal.aborted) setLotStatus('Cadastre lots unavailable'); });
     }
@@ -333,7 +344,7 @@ export default function MapView(props: Props) {
         <li><i style={{ background: '#3b6fd4' }}/>2024 and older<b>{saleCounts.sOlder}</b></li>
         <li><i className="none"/>No sale on the roll<b>{saleCounts.none}</b></li>
       </ul>}
-      <small>Lots in view. The state tax roll carries only the 2025 and 2026 sales; older ones show where a county publishes them.</small>
+      <small>Lots in view. The state roll carries only 2025–26 sales; older sales are added from the county for Broward, Lee, Miami-Dade, Pinellas, Bay, Leon and Okaloosa (latest sale only in Walton, Washington, Jackson and Suwannee).</small>
     </div>}
     <div className="map-caption"><span className="live-dot" /> MUNICIPAL OPEN DATA <span className="caption-divider">/</span> MONTRÉAL, QUÉBEC</div>
   </div>;
