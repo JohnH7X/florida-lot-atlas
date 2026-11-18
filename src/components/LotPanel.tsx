@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { palmBayUtilitiesAt, type PalmBayUtilities } from '../lib/palmBayUtilities';
 import { countySales, SALES_COUNTIES, type Sale, FT_PER_M, infrastructureAt, type Infra, lotArea, lotCenter, lotEdges, SQFT_PER_M2, streetViewUrl, unitsInLot, type LotFeature, type Unit } from '../lib/lots';
 
 const n = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -35,6 +36,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   const setTab = (t: typeof tab) => { document.body.dataset.lotTab = t; setTabState(t); };
   useEffect(() => () => { delete document.body.dataset.lotTab; }, []);
   const [infra, setInfra] = useState<Infra | null | 'loading'>('loading');
+  const [palmBay, setPalmBay] = useState<PalmBayUtilities | null | 'loading'>(null);
+  useEffect(() => {
+    let active = true; setPalmBay('loading');
+    void palmBayUtilitiesAt(lot).then(r => { if (active) setPalmBay(r); }).catch(() => { if (active) setPalmBay(null); });
+    return () => { active = false; };
+  }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
   useEffect(() => {
     let active = true; setInfra('loading');
@@ -195,6 +202,30 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {palmBay === 'loading' && <p className="detail-note">Checking the City of Palm Bay utilities map…</p>}
+        {palmBay && palmBay !== 'loading' && <div className="pb-util">
+          <b>City of Palm Bay utilities</b>
+          <ul>
+            {palmBay.unit && <li className={palmBay.unit.water === 'Yes' ? 'ok' : 'q'}><span>Water (city unit)</span><b>{palmBay.unit.water || 'No data'}</b></li>}
+            {palmBay.unit && <li className={palmBay.unit.sewer === 'Yes' ? 'ok' : palmBay.unit.sewer === 'No' ? 'warn' : 'q'}><span>Sewer (city unit)</span><b>{palmBay.unit.sewer || 'No data'}</b></li>}
+            {palmBay.unit && <li className="q"><span>Reclaimed water</span><b>{palmBay.unit.reclaimed || 'No data'}</b></li>}
+            {palmBay.water && <li className={palmBay.water === 'Yes' ? 'ok' : 'warn'}><span>Water available</span><b>{palmBay.water}</b></li>}
+            {palmBay.sewer && <li className={palmBay.sewer === 'Yes' ? 'ok' : 'warn'}><span>Sewer available</span><b>{palmBay.sewer}</b></li>}
+            {palmBay.reclaimed && <li className="q"><span>Reclaimed available</span><b>{palmBay.reclaimed}</b></li>}
+            {palmBay.unit && <li className="q"><span>Unit</span><b>{palmBay.unit.description || palmBay.unit.name}</b></li>}
+            {palmBay.hydrant && <li className="q"><span>Nearest fire hydrant</span><b>{Math.round(palmBay.hydrant.feet)} ft{palmBay.hydrant.address ? ` · ${palmBay.hydrant.address}` : ''}{palmBay.hydrant.owner ? ` · ${palmBay.hydrant.owner}` : ''}{palmBay.hydrant.status ? ` (${palmBay.hydrant.status})` : ''}</b></li>}
+            {!palmBay.hydrant && <li className="q"><span>Nearest fire hydrant</span><b>None within 800 ft</b></li>}
+            {palmBay.trash && <li className="q"><span>Trash</span><b>{palmBay.trash.trash}</b></li>}
+            {palmBay.trash && <li className="q"><span>Recycling · yard · bulk</span><b>{palmBay.trash.recycle} · {palmBay.trash.yard} · {palmBay.trash.bulk}</b></li>}
+          </ul>
+          {palmBay.availNote && <p className="detail-foot">{palmBay.availNote}</p>}
+          {palmBay.lines.length > 0 && <div className="pb-hookup">
+            <b>Estimated hookup cost by lot line</b>
+            {palmBay.lines.map((l, i) => <div key={i}><span>{l.feet.toFixed(0)} ft</span><span>Water ${l.water?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</span><span>Sewer ${l.sewer?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? '—'}</span>{l.note && <small>{l.note}</small>}</div>)}
+            <small>Estimates only: water $18.80/ft + $2,561 capital charge + $812.42 meter + $100 deposit; sewer $29.63/ft + $3,300 capital charge + $100 deposit. Call Palm Bay Utilities, (321) 952-3400, for a quote. Lot lines shared with a neighbour are listed too.</small>
+          </div>}
+          <p className="detail-foot">Source: City of Palm Bay public map (gis.palmbayflorida.org). <a href="https://gis.palmbayflorida.org/portal/apps/webappviewer/index.html?id=71ec29150c0b469ea3e70abeb332944c" target="_blank" rel="noreferrer">Open it <ArrowUpRight size={10}/></a></p>
+        </div>}
         <p className="detail-foot">Water and sewer: Florida Department of Health, Florida Water Management Inventory{infra && infra !== 'loading' && infra.year ? ` (updated ${infra.year})` : ''}. “Likely” means estimated, not confirmed. The full checklist is in the property file.</p>
     </div>}
 

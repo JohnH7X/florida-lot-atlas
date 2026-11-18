@@ -306,3 +306,11 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .pb-layers label{display:flex;align-items:center;gap:7px}
 .pb-layers input{accent-color:#1f9d55}
 .pb-layers small{font-size:9.5px;color:#7a866f}
+
+.pb-util{margin-top:14px;padding-top:12px;border-top:1px solid #e3e7dc}
+.pb-util>b{display:block;font-size:11px;color:#314735;margin-bottom:8px}
+.pb-hookup{margin-top:10px;font-size:11px;color:#314735}
+.pb-hookup>b{display:block;margin-bottom:5px}
+.pb-hookup>div{display:flex;gap:14px;padding:3px 0;border-bottom:1px solid #eef1e9}
+.pb-hookup>div span:first-child{font-weight:600;min-width:46px}
+.pb-hookup small{display:block;font-size:9.5px;color:#7a866f;margin-top:5px}
