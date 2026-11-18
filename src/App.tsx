@@ -6,6 +6,7 @@ import Reports from './components/Reports';
 import type { LotSnapshot } from './lib/files';
 import { changeMilieu, selectDropdownZone, zonesForType } from './lib/zoning';
 import { DEFAULT_VIEW, readOpen, readProps, encodeProps, encodeView, loadAtlas, readView } from './lib/data';
+import { PALM_BAY_LAYERS } from './lib/palmBay';
 import MyPinsPanel from './components/MyPinsPanel';
 import { useMyPins } from './lib/myPins';
 import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
@@ -36,6 +37,9 @@ export default function App() {
   const [placeFit, setPlaceFit] = useState(0);
   const mine = useMyPins('atlas-my-pins-fl');
   const [placing, setPlacing] = useState(false);
+  const [palmBayOn, setPalmBayOn] = useState(() => { try { return localStorage.getItem('atlas-palmbay') === '1'; } catch { return false; } });
+  const [palmBayLayers, setPalmBayLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-palmbay-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return PALM_BAY_LAYERS.filter(l => l.on).map(l => l.id); });
+  useEffect(() => { try { localStorage.setItem('atlas-palmbay', palmBayOn ? '1' : '0'); localStorage.setItem('atlas-palmbay-layers', JSON.stringify(palmBayLayers)); } catch { /* ignore */ } }, [palmBayOn, palmBayLayers]);
   const [hideTransfers, setHideTransfers] = useState(() => { try { return localStorage.getItem('atlas-hide-transfers') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('atlas-hide-transfers', hideTransfers ? '1' : '0'); } catch { /* ignore */ } }, [hideTransfers]);
   const [activeMine, setActiveMine] = useState<string | null>(null);
@@ -258,7 +262,7 @@ export default function App() {
       <nav className="header-actions"><button className="quiet-button" onClick={() => { setReportLot(null); setReportsOpen(true); }}><FolderOpen size={16}/> Property files</button><button className="quiet-button about-button" onClick={() => setAbout(true)}><Info size={16}/> About the data</button><button className="share-button" onClick={share}>{shareMessage === 'Link copied' ? <Check size={16}/> : <Copy size={16}/>}<span>{shareMessage || 'Share view'}</span></button></nav>
     </header>
     <main className="workspace">
-      {metadata && <MapView hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
+      {metadata && <MapView palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
         lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
@@ -303,6 +307,11 @@ export default function App() {
           <summary><Layers size={16}/> Layers & filters<span className="filters-state">{scope}{view.milieu ? ' · filtered' : ''}</span><ChevronDown size={14}/></summary>
           <div className="filters-body">
             <div className="toggle-row"><span>Tax parcels (yellow)</span><button className={`toggle ${lotsVisible ? 'on' : ''}`} role="switch" aria-checked={lotsVisible} aria-label="Show tax parcels" onClick={() => setLotsVisible(v => !v)}><span/></button></div>
+            <div className="toggle-row"><span>Palm Bay city map</span><button className={`toggle ${palmBayOn ? 'on' : ''}`} role="switch" aria-checked={palmBayOn} aria-label="Show City of Palm Bay map layers" onClick={() => setPalmBayOn(v => !v)}><span/></button></div>
+            {palmBayOn && <div className="pb-layers">
+              {PALM_BAY_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={palmBayLayers.includes(l.id)} onChange={e => setPalmBayLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> {l.label}</label>)}
+              <small>City of Palm Bay GIS (Palm Bay only). <a href="https://gis.palmbayflorida.org/portal/apps/webappviewer/index.html?id=71ec29150c0b469ea3e70abeb332944c" target="_blank" rel="noreferrer">Open the city's map ↗</a></small>
+            </div>}
             <div className="toggle-row"><span>Zoning (local, not statewide)</span><button className={`toggle ${view.visible ? 'on' : ''}`} role="switch" aria-checked={view.visible} aria-label="Show zoning layer" onClick={() => setView(current => ({ ...current, visible: !current.visible }))}><span/></button></div>
             <div className="opacity-row"><span>Opacity</span><input aria-label="Zoning overlay opacity" type="range" min="0.1" max="0.85" step="0.05" value={opacity} onChange={e => setOpacity(Number(e.target.value))}/><span>{Math.round(opacity * 100)}%</span></div>
             <div className="field-row"><label className="field-label" htmlFor="scope-filter">ZONING AREA</label><div className="select-wrap"><select id="scope-filter" value={scope} onChange={e => { setScope(e.target.value); setView(current => ({ ...current, milieu: '', zoneFilter: '', zone: '' })); }}><option value="">All areas</option>{scopes.map(c => <option key={c} value={c}>{zonedCities.has(c) ? `${c} — zoning districts` : `${c} — no open zoning data`}</option>)}</select><ChevronDown size={14}/></div></div>

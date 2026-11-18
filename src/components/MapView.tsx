@@ -6,6 +6,7 @@ import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
 import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
 import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
+import { PALM_BAY_BOUNDS, PALM_BAY_LAYERS, palmBayTiles } from '../lib/palmBay';
 import { countySalesForLots } from '../lib/countySalesBulk';
 
 interface Props {
@@ -20,6 +21,8 @@ interface Props {
   focus: { coordinates: [number, number]; zoom: number; serial: number } | null;
   lotsVisible: boolean;
   hideTransfers?: boolean;
+  /** Palm Bay city-map layers that are switched on (ids from PALM_BAY_LAYERS). */
+  palmBay?: string[];
   selectedLot: LotFeature | null;
   pins?: Pin[];
   activePin?: number | null;
@@ -154,6 +157,11 @@ export default function MapView(props: Props) {
             tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
             attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
           instance.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } }, before);
+          // City of Palm Bay public map layers (image exports from the city's own GIS), off until switched on.
+          for (const l of PALM_BAY_LAYERS) {
+            instance.addSource(`pb-${l.id}`, { type: 'raster', tileSize: 512, bounds: PALM_BAY_BOUNDS, tiles: [palmBayTiles(l.service)], attribution: 'City of Palm Bay GIS' });
+            instance.addLayer({ id: `pb-${l.id}`, type: 'raster', source: `pb-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': l.id === 'limits' ? 0.9 : 0.75 } }, before);
+          }
           instance.addLayer({ id: 'zoning-fill', type: 'fill', source: 'zones', paint: { 'fill-color': color, 'fill-opacity': 0.5 } }, before);
           instance.addLayer({ id: 'zoning-line', type: 'line', source: 'zones', paint: { 'line-color': '#5b655c', 'line-opacity': 0.55, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 14, 1] } }, before);
           instance.addLayer({ id: 'zoning-quality', type: 'line', source: 'zones', filter: ['==', ['get', 'qualityIssue'], true], paint: { 'line-color': '#b65328', 'line-width': 2.4, 'line-dasharray': [2, 2] } });
@@ -372,6 +380,10 @@ export default function MapView(props: Props) {
     refreshLotsRef.current();
   }, [props.lotsVisible, ready]);
   useEffect(() => { if (ready) refreshLotsRef.current(); }, [props.hideTransfers, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const l of PALM_BAY_LAYERS) if (m.getLayer(`pb-${l.id}`)) m.setLayoutProperty(`pb-${l.id}`, 'visibility', props.palmBay?.includes(l.id) ? 'visible' : 'none');
+  }, [props.palmBay, ready]);
 
   useEffect(() => {
     const m = map.current;
