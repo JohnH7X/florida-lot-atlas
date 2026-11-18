@@ -19,6 +19,7 @@ interface Props {
   opacity: number;
   focus: { coordinates: [number, number]; zoom: number; serial: number } | null;
   lotsVisible: boolean;
+  hideTransfers?: boolean;
   selectedLot: LotFeature | null;
   pins?: Pin[];
   activePin?: number | null;
@@ -306,9 +307,10 @@ export default function MapView(props: Props) {
         const paint = (extra?: Map<number, { ms: number; price: number }[]>) => {
           const counts = { s2026: 0, s2025: 0, sOlder: 0, none: 0 };
           const lots = base.map((f, i) => {
-            let sb = saleBandOf(f.properties as Record<string, unknown>);
+            const hideT = !!callbacks.current.hideTransfers;
+            let sb = saleBandOf(f.properties as Record<string, unknown>, hideT);
             // County sales (older than the state roll carries) can only make a lot's latest sale newer or fill an empty one.
-            for (const c of extra?.get(i) || []) { const y = new Date(c.ms).getUTCFullYear(); if (y > sb.year) sb = bandOfSale(y, c.price); }
+            for (const c of extra?.get(i) || []) { if (hideT && c.price <= 100) continue; const y = new Date(c.ms).getUTCFullYear(); if (y > sb.year) sb = bandOfSale(y, c.price); }
             counts[sb.band]++;
             return { ...f, properties: { ...f.properties, saleBand: sb.band, saleText: sb.text } };
           });
@@ -357,6 +359,7 @@ export default function MapView(props: Props) {
     for (const id of ['lot-hit', 'lot-hover', 'lot-line', 'lot-label']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', props.lotsVisible ? 'visible' : 'none');
     refreshLotsRef.current();
   }, [props.lotsVisible, ready]);
+  useEffect(() => { if (ready) refreshLotsRef.current(); }, [props.hideTransfers, ready]);
 
   useEffect(() => {
     const m = map.current;

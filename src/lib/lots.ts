@@ -379,8 +379,8 @@ export function bandOfSale(year: number, price: number): { band: SaleBand; text:
   return { band: year >= 2026 ? 's2026' : year === 2025 ? 's2025' : 'sOlder', text: `${priceText(price)} · ${year}`, year };
 }
 /** The lot's latest sale on the state roll (SALE_*1 / SALE_*2): its year band for the map colours and a short price label. */
-export function saleBandOf(p: Record<string, unknown>): { band: SaleBand; text: string; year: number } {
+export function saleBandOf(p: Record<string, unknown>, hideTransfers = false): { band: SaleBand; text: string; year: number } {
   const cand = [1, 2].map(i => ({ y: Number(p[`SALE_YR${i}`]) || 0, m: Number(p[`SALE_MO${i}`]) || 0, price: Number(p[`SALE_PRC${i}`]) || 0 }))
-    .filter(c => c.y >= 1900).sort((a, b) => b.y - a.y || b.m - a.m)[0];
+    .filter(c => c.y >= 1900 && !(hideTransfers && c.price <= 100)).sort((a, b) => b.y - a.y || b.m - a.m)[0];
   return cand ? bandOfSale(cand.y, cand.price) : { band: 'none', text: '', year: 0 };
 }

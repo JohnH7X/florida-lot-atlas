@@ -36,6 +36,8 @@ export default function App() {
   const [placeFit, setPlaceFit] = useState(0);
   const mine = useMyPins('atlas-my-pins-fl');
   const [placing, setPlacing] = useState(false);
+  const [hideTransfers, setHideTransfers] = useState(() => { try { return localStorage.getItem('atlas-hide-transfers') === '1'; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem('atlas-hide-transfers', hideTransfers ? '1' : '0'); } catch { /* ignore */ } }, [hideTransfers]);
   const [activeMine, setActiveMine] = useState<string | null>(null);
   useEffect(() => {
     if (!placing) return;
@@ -256,7 +258,7 @@ export default function App() {
       <nav className="header-actions"><button className="quiet-button" onClick={() => { setReportLot(null); setReportsOpen(true); }}><FolderOpen size={16}/> Property files</button><button className="quiet-button about-button" onClick={() => setAbout(true)}><Info size={16}/> About the data</button><button className="share-button" onClick={share}>{shareMessage === 'Link copied' ? <Check size={16}/> : <Copy size={16}/>}<span>{shareMessage || 'Share view'}</span></button></nav>
     </header>
     <main className="workspace">
-      {metadata && <MapView initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
+      {metadata && <MapView hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
         lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
@@ -291,7 +293,7 @@ export default function App() {
             {pins.map(p => <button key={p.n} className={`pin-row ${activePin === p.n ? 'on' : ''}`} onClick={() => choosePin(p)}><i className={`dre-pin small${p.stars ? ' rated' : ''}`}>{p.n}</i><span>{p.addr || `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}</span>{p.stars > 0 && <em>{'★'.repeat(p.stars)}</em>}</button>)}
           </div>}
         </section>
-        <MyPinsPanel pins={mine.pins} placing={placing} activeId={activeMine} fileName="my-florida-pins.csv" canPinParcel={!!selectedLot && !!lotCenter(selectedLot)}
+        <MyPinsPanel pins={mine.pins} placing={placing} activeId={activeMine} fileName="my-florida-pins.csv" canPinParcel={!!selectedLot && !!lotCenter(selectedLot)} hideTransfers={hideTransfers} onToggleTransfers={() => setHideTransfers(v => !v)}
           onTogglePlacing={() => setPlacing(v => !v)}
           onPinParcel={() => { const c = selectedLot && lotCenter(selectedLot); if (!c || !selectedLot) return; const pr = selectedLot.properties as Record<string, unknown>; setActiveMine(mine.add(c[0], c[1], String(pr.PHY_ADDR1 || pr.LABEL || '').trim() || 'Parcel')); }}
           onSelect={setActiveMine} onUpdate={mine.update} onRemove={mine.remove} onClear={() => { mine.clear(); setActiveMine(null); }}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Cloud, Crosshair, Download, MapPin, Trash2, X } from 'lucide-react';
+import { Cloud, Crosshair, Download, EyeOff, MapPin, Trash2, X } from 'lucide-react';
 import { MY_PIN_STATUS, myPinsCsv, downloadText, type CloudState, type MyPin, type MyPinStatus } from '../lib/myPins';
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   placing: boolean;
   activeId: string | null;
   canPinParcel: boolean;
+  hideTransfers: boolean;
+  onToggleTransfers: () => void;
   fileName: string;
   onTogglePlacing: () => void;
   onPinParcel: () => void;
@@ -33,6 +35,7 @@ export default function MyPinsPanel(p: Props) {
     </div>
     <div className="my-pins-actions">
       <button className={`pin-btn ${p.placing ? 'on' : ''}`} onClick={p.onTogglePlacing}><Crosshair size={13}/> {p.placing ? 'Click the map… (done)' : 'Drop a pin'}</button>
+      <button className={`pin-btn ${p.hideTransfers ? 'on' : ''}`} aria-pressed={p.hideTransfers} onClick={p.onToggleTransfers} title="Ignore $0–$100 transfers when colouring lots and labelling sales"><EyeOff size={13}/> {p.hideTransfers ? 'Transfers hidden' : 'Hide transfers'}</button>
       {p.canPinParcel && <button className="pin-btn" onClick={p.onPinParcel}><MapPin size={13}/> Pin open parcel</button>}
     </div>
     <div className="cloud-row">
