@@ -5,6 +5,7 @@ import { FAMILIES, type MapPosition, type Pin, type ViewState, type Zone } from 
 import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
 import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
+import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
 import { countySalesForLots } from '../lib/countySalesBulk';
 
 interface Props {
@@ -22,6 +23,15 @@ interface Props {
   pins?: Pin[];
   activePin?: number | null;
   onPinClick?: (pin: Pin) => void;
+  myPins?: MyPin[];
+  activeMyPin?: string | null;
+  placing?: boolean;
+  onPlace?: (lng: number, lat: number) => void;
+  onMyPinClick?: (id: string) => void;
+  onMyPinMove?: (id: string, lng: number, lat: number) => void;
+  placePins?: { id: string; title: string; coordinates: [number, number] }[];
+  placeFit?: number;
+  onPlacePinClick?: (id: string) => void;
   onLotClick: (lot: string) => void;
   onPointClick?: (coordinates: [number, number]) => void;
   onSelect: (code: string) => void;
@@ -73,6 +83,28 @@ export default function MapView(props: Props) {
       pinMarkers.current.push(new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(m));
     }
   }, [props.pins, props.activePin, ready]);
+  // The user's own research pins: coloured by status, labelled, and draggable.
+  const myMarkers = useRef<maplibregl.Marker[]>([]);
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    myMarkers.current.forEach(x => x.remove()); myMarkers.current = [];
+    for (const p of props.myPins || []) {
+      const el = document.createElement('div');
+      el.className = 'my-tear-wrap';
+      const shape = document.createElement('div');
+      shape.className = `my-tear${props.activeMyPin === p.id ? ' active' : ''}`;
+      shape.style.background = MY_PIN_STATUS[p.status].color;
+      const dot = document.createElement('span'); shape.appendChild(dot);
+      const label = document.createElement('div'); label.className = 'my-tear-label'; label.textContent = p.label;
+      el.append(shape, label);
+      el.title = p.note ? `${p.label}\n${p.note}` : p.label;
+      el.addEventListener('click', ev => { ev.stopPropagation(); callbacks.current.onMyPinClick?.(p.id); });
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom', draggable: true }).setLngLat([p.lng, p.lat]).addTo(m);
+      marker.on('dragend', () => { const ll = marker.getLngLat(); callbacks.current.onMyPinMove?.(p.id, ll.lng, ll.lat); });
+      myMarkers.current.push(marker);
+    }
+  }, [props.myPins, props.activeMyPin, ready]);
   const pinKey = (props.pins || []).map(p => `${p.lng},${p.lat}`).join('|');
   useEffect(() => {
     const m = map.current, pins = props.pins || [];
@@ -153,6 +185,30 @@ export default function MapView(props: Props) {
           if (instance.getStyle().glyphs) instance.addLayer({ id: 'lot-sale-label', type: 'symbol', source: 'lots', minzoom: 16.6, filter: ['!=', ['get', 'saleBand'], 'none'],
             layout: { 'text-field': ['get', 'saleText'], 'text-size': ['interpolate', ['linear'], ['zoom'], 16.6, 9, 19, 12], 'text-font': ['Noto Sans Regular'], 'text-offset': [0, -0.7], 'text-allow-overlap': true },
             paint: { 'text-color': '#12263a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } });
+          // Category results (hotels, attractions…): blue teardrops with the place name.
+          {
+            const px = 2, w = 28 * px, h = 40 * px, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+            const g = cv.getContext('2d');
+            if (g) {
+              const cx = w / 2, r = 11 * px, cy = r + 3 * px;
+              g.beginPath(); g.moveTo(cx, h - 2 * px);
+              g.bezierCurveTo(cx - r * 0.9, cy + r * 1.35, cx - r, cy + r * 0.55, cx - r, cy);
+              g.arc(cx, cy, r, Math.PI, 0, false);
+              g.bezierCurveTo(cx + r, cy + r * 0.55, cx + r * 0.9, cy + r * 1.35, cx, h - 2 * px);
+              g.closePath(); g.fillStyle = '#2f6fd4'; g.fill(); g.lineWidth = 1.5 * px; g.strokeStyle = '#ffffff'; g.stroke();
+              g.beginPath(); g.arc(cx, cy, r * 0.38, 0, Math.PI * 2); g.fillStyle = '#ffffff'; g.fill();
+              instance.addImage('place-pin', g.getImageData(0, 0, w, h), { pixelRatio: 2 });
+            }
+            instance.addSource('place-pins', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            instance.addLayer({ id: 'place-pins', type: 'symbol', source: 'place-pins', layout: {
+              'icon-image': 'place-pin', 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+              'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.6, 12, 0.8, 16, 1],
+              ...(instance.getStyle().glyphs ? { 'text-field': ['get', 'title'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.3], 'text-optional': true, 'text-max-width': 9 } : {}) },
+              paint: { 'text-color': '#17407f', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } });
+            instance.on('mouseenter', 'place-pins', () => { if (instance) instance.getCanvas().style.cursor = 'pointer'; });
+            instance.on('mouseleave', 'place-pins', () => { if (instance) instance.getCanvas().style.cursor = ''; });
+            instance.on('click', 'place-pins', e => { const id = e.features?.[0]?.properties?.id; if (id) callbacks.current.onPlacePinClick?.(String(id)); });
+          }
           instance.addLayer({ id: 'lot-selected-fill', type: 'fill', source: 'lot-selected', paint: { 'fill-color': '#f2c200', 'fill-opacity': 0.28 } });
           instance.addLayer({ id: 'lot-selected-line', type: 'line', source: 'lot-selected', paint: { 'line-color': '#f2c200', 'line-width': 4 } });
           // Side lengths of every lot in view (close zoom only), in small type; the selected lot's are larger.
@@ -196,6 +252,7 @@ export default function MapView(props: Props) {
           instance.on('zoomstart', clearHover);
           // Below parcel zoom (or before parcels load), a click still opens the parcel under the pointer.
           instance.on('click', e => {
+            if (callbacks.current.placing) { callbacks.current.onPlace?.(e.lngLat.lng, e.lngLat.lat); return; }
             if (!instance || instance.getZoom() < 13) return;
             clearHover();
             callbacks.current.onPointClick?.([e.lngLat.lng, e.lngLat.lat]);
@@ -328,10 +385,22 @@ export default function MapView(props: Props) {
 
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
+    (m.getSource('place-pins') as maplibregl.GeoJSONSource | undefined)?.setData({ type: 'FeatureCollection', features: (props.placePins || []).map(p => ({ type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: p.coordinates }, properties: { id: p.id, title: p.title } })) });
+  }, [props.placePins, ready]);
+  useEffect(() => {
+    const m = map.current, pins = props.placePins || [];
+    if (!m || !ready || !props.placeFit || !pins.length) return;
+    const b = new maplibregl.LngLatBounds(pins[0].coordinates, pins[0].coordinates);
+    pins.forEach(p => b.extend(p.coordinates));
+    m.fitBounds(b, { padding: { top: 90, bottom: 90, left: window.innerWidth > 760 ? 420 : 40, right: 50 }, maxZoom: 14, duration: 800 });
+  }, [props.placeFit, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
     for (const id of ['lot-sale-fill', 'lot-sale-label']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', saleColors ? 'visible' : 'none');
     try { localStorage.setItem('atlas-sale-colors', saleColors ? '1' : '0'); } catch { /* ignore */ }
   }, [saleColors, ready]);
-  return <div className="map-wrap"><div ref={host} className="map-canvas" aria-label="Interactive Florida parcel map" />
+  return <div className={`map-wrap${props.placing ? ' placing' : ''}`}><div ref={host} className="map-canvas" aria-label="Interactive Florida parcel map" />
     {!ready && !message && <div className="map-message">Loading map…</div>}
     {message && <div className={`map-message ${message.startsWith('Basemap') ? 'subtle' : ''}`} role="status">{message}</div>}
     {ready && <div className="basemap-switch" role="group" aria-label="Basemap"><button className={satellite ? '' : 'on'} aria-pressed={!satellite} onClick={() => setSatellite(false)}>Map</button><button className={satellite ? 'on' : ''} aria-pressed={satellite} onClick={() => setSatellite(true)}>Satellite</button></div>}

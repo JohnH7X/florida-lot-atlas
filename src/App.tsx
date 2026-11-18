@@ -6,7 +6,9 @@ import Reports from './components/Reports';
 import type { LotSnapshot } from './lib/files';
 import { changeMilieu, selectDropdownZone, zonesForType } from './lib/zoning';
 import { DEFAULT_VIEW, readOpen, readProps, encodeProps, encodeView, loadAtlas, readView } from './lib/data';
-import { searchAtlas } from './lib/search';
+import MyPinsPanel from './components/MyPinsPanel';
+import { useMyPins } from './lib/myPins';
+import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
 import { territoryAt } from './lib/territory';
 import { useDrag } from './lib/useDrag';
 import { findLot, lotAtPoint, lotCenter, normalizeLot, streetViewUrl, type LotFeature } from './lib/lots';
@@ -27,6 +29,19 @@ export default function App() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searchState, setSearchState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [searchError, setSearchError] = useState('');
+  const [browse, setBrowse] = useState<BrowseChip | null>(null);
+  const [includeSmall, setIncludeSmall] = useState(false);
+  const [browseList, setBrowseList] = useState<SearchResult[]>([]);
+  const [browseState, setBrowseState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [placeFit, setPlaceFit] = useState(0);
+  const mine = useMyPins('atlas-my-pins-fl');
+  const [placing, setPlacing] = useState(false);
+  const [activeMine, setActiveMine] = useState<string | null>(null);
+  useEffect(() => {
+    if (!placing) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setPlacing(false); };
+    window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc);
+  }, [placing]);
   const [truncated, setTruncated] = useState(false);
   const [focus, setFocus] = useState<{ coordinates: [number, number]; zoom: number; serial: number } | null>(null);
   const [selectedAddress, setSelectedAddress] = useState('');
@@ -108,6 +123,21 @@ export default function App() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [query, metadata, zones]);
 
+  // Hotels, attractions, ski/golf/parks: everything of that kind in the map view, nearest the centre first.
+  useEffect(() => {
+    if (!browse) { setBrowseList([]); setBrowseState('idle'); return; }
+    const controller = new AbortController();
+    setBrowseState('loading');
+    const wide = view.zoom <= 7.5, half = Math.max(0.12, Math.min(2.5, 360 / 2 ** view.zoom * 1.2));
+    const extent: [number, number, number, number] = wide ? [-87.7, 24.4, -79.9, 31.1] : [view.lng - half, view.lat - half * 0.75, view.lng + half, view.lat + half * 0.75];
+    void browseCategory(browse, extent, [view.lng, view.lat], includeSmall, controller.signal)
+      .then(list => { setBrowseList(list); setBrowseState('done'); if (list.length) setPlaceFit(n => n + 1); })
+      .catch(e => { if (!controller.signal.aborted) { setSearchError(e.message); setBrowseState('error'); } });
+    return () => controller.abort();
+    // re-run when the chip or the size filter changes, not on every pan
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [browse, includeSmall]);
+
   async function scopeAt(point: [number, number], clearZone = false) {
     const t = await territoryAt(point).catch(() => null);
     setScope(!t ? '' : t.type === 'borough' ? 'New York City' : t.name);
@@ -118,17 +148,17 @@ export default function App() {
   async function choose(result: SearchResult) {
     setView(current => ({ ...current, zone: result.zoneCodes.length === 1 ? result.zoneCodes[0] : '', milieu: '', zoneFilter: '', visible: true }));
     void scopeAt(result.coordinates);
-    setSelectedAddress(result.kind === 'address' ? result.title : '');
-    setAddressCoordinates(result.kind === 'address' ? result.coordinates : null);
-    setFocus({ coordinates: result.coordinates, zoom: result.kind === 'address' ? 17.5 : 14, serial: Date.now() });
-    setQuery(''); setResults([]); setSearchState('idle');
+    setSelectedAddress(result.kind === 'address' || result.kind === 'poi' ? result.title : '');
+    setAddressCoordinates(result.kind === 'address' || result.kind === 'poi' ? result.coordinates : null);
+    setFocus({ coordinates: result.coordinates, zoom: result.zoom ?? (result.kind === 'address' ? 17.5 : 14), serial: Date.now() });
+    setQuery(''); setResults([]); setSearchState('idle'); setBrowse(null);
     if (window.innerWidth < 760) setRailOpen(false);
-    if (result.kind !== 'address') return;
+    if (result.kind !== 'address' && result.kind !== 'poi') return;
     // An address opens the tax parcel it sits on, with its assessment record.
     const id = ++lotSearchId.current;
     setLotState('loading'); setLotsVisible(true);
     try {
-      const lot = await lotAtPoint(result.coordinates, undefined, result.title);
+      const lot = await lotAtPoint(result.coordinates, undefined, result.kind === 'poi' ? '' : result.title);
       if (id !== lotSearchId.current) return;
       setSelectedLot(lot); setLastLot(''); setLotState(lot ? 'idle' : 'notfound');
     } catch { if (id === lotSearchId.current) setLotState('error'); }
@@ -227,7 +257,7 @@ export default function App() {
     </header>
     <main className="workspace">
       {metadata && <MapView initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
-        lotsVisible={lotsVisible} selectedLot={selectedLot} pins={pins} activePin={activePin} onPinClick={choosePin} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
+        lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
       {error && <div className="fatal-error" role="alert">{error}<button onClick={() => window.location.reload()}>Reload map</button></div>}
@@ -235,7 +265,17 @@ export default function App() {
       <aside className={`explorer-rail compact ${railOpen ? '' : 'collapsed'}`} aria-label="Map explorer" style={railOpen ? railDrag.style : undefined}>
         <div className="rail-heading drag-handle" {...railDrag.handle}><span className="grip" aria-hidden="true"/><div className="eyebrow">FLORIDA · PARCELS, OWNERS, VALUES & SALES</div></div>
         <section className="search-section">
-          <form className="search-input" onSubmit={e => { e.preventDefault(); if (lotLike) void searchLot(query); else if (results[0]) void choose(results[0]); }}><Search size={18}/><input id="atlas-search" value={query} onChange={e => { setQuery(e.target.value); setLotState('idle'); }} placeholder="Address, city or ZIP" autoComplete="off" aria-label="Search a Florida address"/>{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search"><X size={15}/></button>}</form>
+          <form className="search-input" onSubmit={e => { e.preventDefault(); if (lotLike) void searchLot(query); else if (results[0]) void choose(results[0]); }}><Search size={18}/><input id="atlas-search" value={query} onChange={e => { setQuery(e.target.value); setLotState('idle'); if (e.target.value) setBrowse(null); }} placeholder="Address, city, ZIP, hotel or attraction" autoComplete="off" aria-label="Search a Florida address"/>{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search"><X size={15}/></button>}</form>
+          {!query && <div className="browse-chips" role="group" aria-label="Browse places">{BROWSE_CHIPS.map(c => <button key={c.id} className={`chip ${browse?.id === c.id ? 'on' : ''}`} onClick={() => setBrowse(b => b?.id === c.id ? null : c)}>{c.label}</button>)}</div>}
+          {!query && browse && <div className="search-results">
+            <div className="result-heading"><span>{browse.label} {view.zoom <= 7.5 ? 'across Florida' : 'in the map view'} · nearest first</span></div>
+            {browse.large && <label className="browse-filter"><input type="checkbox" checked={includeSmall} onChange={e => setIncludeSmall(e.target.checked)}/> Include small stays and rentals</label>}
+            {browse.large && !includeSmall && <p className="search-hint">No room counts are published, so "large" is judged by name: resorts, casinos, conference hotels and major chains.</p>}
+            {browseState === 'loading' && <div className="search-feedback" role="status"><span className="spinner"/> Looking around the map…</div>}
+            {browseState === 'error' && <div className="search-feedback error" role="alert">{searchError}</div>}
+            {browseState === 'done' && browseList.length === 0 && <div className="search-feedback">Nothing found in this view. Zoom out or pan, then pick the category again.</div>}
+            {browseList.map(r => <button key={r.id} className="result" onClick={() => void choose(r)}><MapPin size={16}/><span><strong>{r.title}</strong><small>{r.subtitle}</small></span><ChevronRight size={14}/></button>)}
+          </div>}
           {lotLike && <button className="result lot-result" onClick={() => void searchLot(query)}><span className="lot-dot"/><span><strong>Parcel {normalizeLot(query)}</strong><small>Open this parcel (SWIS + SBL key)</small></span><ChevronRight size={14}/></button>}
           {searchState === 'loading' && !lotLike && <div className="search-feedback" role="status"><span className="spinner"/> Searching addresses…</div>}
           {searchState === 'error' && <div className="search-feedback error" role="alert">{searchError}</div>}
@@ -245,12 +285,18 @@ export default function App() {
           {lotState === 'notfound' && <div className="search-feedback">{lastLot ? `No parcel ${lastLot}.` : 'No tax parcel found at this point.'}</div>}
           {lotState === 'nogeometry' && <div className="search-feedback">Parcel {selectedLot?.properties.LABEL} has no outline.</div>}
           {lotState === 'error' && <div className="search-feedback error" role="alert">The Florida parcel service did not respond. Try again.</div>}
-          {!query && !selectedLot && <p className="search-hint">Search an address, or zoom in and click any yellow parcel.</p>}
+          {!query && !selectedLot && <p className="search-hint">Search an address, city, hotel or attraction, or zoom in and click any yellow parcel.</p>}
           {pins.length > 0 && <div className="pin-list">
             <div className="pin-list-head"><strong>Properties sent from DRE ({pins.length})</strong><button className="text-button" onClick={() => { setPins([]); setActivePin(null); }}><X size={12}/> Clear</button></div>
             {pins.map(p => <button key={p.n} className={`pin-row ${activePin === p.n ? 'on' : ''}`} onClick={() => choosePin(p)}><i className={`dre-pin small${p.stars ? ' rated' : ''}`}>{p.n}</i><span>{p.addr || `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`}</span>{p.stars > 0 && <em>{'★'.repeat(p.stars)}</em>}</button>)}
           </div>}
         </section>
+        <MyPinsPanel pins={mine.pins} placing={placing} activeId={activeMine} fileName="my-florida-pins.csv" canPinParcel={!!selectedLot && !!lotCenter(selectedLot)}
+          onTogglePlacing={() => setPlacing(v => !v)}
+          onPinParcel={() => { const c = selectedLot && lotCenter(selectedLot); if (!c || !selectedLot) return; const pr = selectedLot.properties as Record<string, unknown>; setActiveMine(mine.add(c[0], c[1], String(pr.PHY_ADDR1 || pr.LABEL || '').trim() || 'Parcel')); }}
+          onSelect={setActiveMine} onUpdate={mine.update} onRemove={mine.remove} onClear={() => { mine.clear(); setActiveMine(null); }}
+          onFly={pin => setFocus({ coordinates: [pin.lng, pin.lat], zoom: Math.max(view.zoom, 16.5), serial: Date.now() })}
+          onOpenParcel={pin => void lotAt([pin.lng, pin.lat])}/>
         <details className="filters" open={filtersOpen} onToggle={e => setFiltersOpen((e.target as HTMLDetailsElement).open)}>
           <summary><Layers size={16}/> Layers & filters<span className="filters-state">{scope}{view.milieu ? ' · filtered' : ''}</span><ChevronDown size={14}/></summary>
           <div className="filters-body">

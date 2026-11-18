@@ -263,3 +263,35 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .sale-scale li i.none{background:transparent;border:1.5px solid #f2c200}
 .sale-scale small{display:block;font-size:9px;color:#8b967f}
 @media(max-width:760px){.sale-scale{right:12px;bottom:96px;width:160px}}
+
+.browse-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+.browse-chips .chip{border:1px solid #cfd6c8;background:var(--paper);color:#314735;border-radius:999px;padding:5px 11px;font-size:11px;cursor:pointer}
+.browse-chips .chip:hover{border-color:#6f8f66}
+.browse-chips .chip.on{background:#2f5a3a;border-color:#2f5a3a;color:#fff}
+.browse-filter{display:flex;align-items:center;gap:7px;font-size:10px;color:#4f5e4a;margin:4px 0 6px}
+
+/* My research pins */
+.my-pins{padding:16px 25px;border-bottom:1px solid var(--line)}
+.my-pins-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#314735;margin-bottom:10px}
+.my-pins-head strong{display:flex;align-items:center;gap:6px;font-weight:600}
+.my-pins-tools{display:flex;gap:12px}
+.my-pins-actions{display:flex;gap:8px;flex-wrap:wrap}
+.pin-btn{display:flex;align-items:center;gap:6px;border:1px solid #cfd6c8;background:#fff;border-radius:5px;padding:7px 10px;font-size:11px;color:#314735}
+.pin-btn:hover{border-color:#7c3aed}
+.pin-btn.on{background:#7c3aed;border-color:#7c3aed;color:#fff}
+.my-pin-row{border-bottom:1px solid #e7e9e1}
+.my-pin-row.on{background:#f4f0fb}
+.my-pin-main{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 2px;font-size:11px;color:#314735}
+.my-pin-main i{width:10px;height:10px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);flex:none}
+.my-pin-main span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.my-pin-main em{font-style:normal;font-size:9px;color:#8a9584;flex:none}
+.my-pin-edit{display:grid;gap:7px;padding:2px 2px 10px}
+.my-pin-edit input,.my-pin-edit select,.my-pin-edit textarea{width:100%;border:1px solid #dce1d5;border-radius:4px;background:#fff;padding:7px 8px;font-size:11px;color:#304234;font-family:inherit;resize:vertical}
+.my-pin-btns{display:flex;justify-content:space-between}
+.text-button.danger{color:#b4452d}
+.my-tear-wrap{width:30px;height:38px;cursor:grab;position:relative}
+.my-tear{position:absolute;left:3px;top:2px;width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px #0006;display:flex;align-items:center;justify-content:center}
+.my-tear span{width:8px;height:8px;border-radius:50%;background:#fff}
+.my-tear.active{outline:3px solid #ffd400;outline-offset:1px}
+.my-tear-label{position:absolute;top:40px;left:50%;transform:translateX(-50%);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;background:#fffffff0;border:1px solid #d9d2ea;border-radius:3px;padding:1px 5px;font-size:10px;color:#3b2a66;pointer-events:none}
+.map-wrap.placing .maplibregl-canvas{cursor:crosshair!important}

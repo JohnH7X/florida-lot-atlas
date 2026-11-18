@@ -36,7 +36,8 @@ export interface Metadata {
 export type AddressRow = [string, string, string, number, number, string[], number];
 export interface SearchResult {
   id: string;
-  kind: 'address' | 'zone';
+  kind: 'address' | 'zone' | 'place' | 'poi';
+  zoom?: number;
   title: string;
   subtitle: string;
   coordinates: [number, number];
