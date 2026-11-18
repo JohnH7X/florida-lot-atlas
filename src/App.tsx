@@ -9,6 +9,7 @@ import { DEFAULT_VIEW, readOpen, readProps, encodeProps, encodeView, loadAtlas, 
 import { PALM_BAY_LAYERS } from './lib/palmBay';
 import { COCOA_LAYERS } from './lib/cocoa';
 import { TITUSVILLE_LAYERS } from './lib/titusville';
+import { MELBOURNE_LAYERS } from './lib/melbourne';
 import MyPinsPanel from './components/MyPinsPanel';
 import { useMyPins } from './lib/myPins';
 import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
@@ -39,6 +40,9 @@ export default function App() {
   const [placeFit, setPlaceFit] = useState(0);
   const mine = useMyPins('atlas-my-pins-fl');
   const [placing, setPlacing] = useState(false);
+  const [mbOn, setMbOn] = useState(() => { try { return localStorage.getItem('atlas-melbourne') === '1'; } catch { return false; } });
+  const [mbLayers, setMbLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-melbourne-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return MELBOURNE_LAYERS.filter(l => l.on).map(l => l.id); });
+  useEffect(() => { try { localStorage.setItem('atlas-melbourne', mbOn ? '1' : '0'); localStorage.setItem('atlas-melbourne-layers', JSON.stringify(mbLayers)); } catch { /* ignore */ } }, [mbOn, mbLayers]);
   const [tvOn, setTvOn] = useState(() => { try { return localStorage.getItem('atlas-titusville') === '1'; } catch { return false; } });
   const [tvLayers, setTvLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-titusville-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return TITUSVILLE_LAYERS.filter(l => l.on).map(l => l.id); });
   useEffect(() => { try { localStorage.setItem('atlas-titusville', tvOn ? '1' : '0'); localStorage.setItem('atlas-titusville-layers', JSON.stringify(tvLayers)); } catch { /* ignore */ } }, [tvOn, tvLayers]);
@@ -270,7 +274,7 @@ export default function App() {
       <nav className="header-actions"><button className="quiet-button" onClick={() => { setReportLot(null); setReportsOpen(true); }}><FolderOpen size={16}/> Property files</button><button className="quiet-button about-button" onClick={() => setAbout(true)}><Info size={16}/> About the data</button><button className="share-button" onClick={share}>{shareMessage === 'Link copied' ? <Check size={16}/> : <Copy size={16}/>}<span>{shareMessage || 'Share view'}</span></button></nav>
     </header>
     <main className="workspace">
-      {metadata && <MapView titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
+      {metadata && <MapView melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
         lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
@@ -329,6 +333,11 @@ export default function App() {
             {tvOn && <div className="pb-layers">
               {TITUSVILLE_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={tvLayers.includes(l.id)} onChange={e => setTvLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> {l.label}</label>)}
               <small>City of Titusville GIS. Zoom in to see the lines. Open a parcel for the nearest mains.</small>
+            </div>}
+            <div className="toggle-row"><span>Melbourne utilities</span><button className={`toggle ${mbOn ? 'on' : ''}`} role="switch" aria-checked={mbOn} aria-label="Show City of Melbourne utility service areas" onClick={() => setMbOn(v => !v)}><span/></button></div>
+            {mbOn && <div className="pb-layers">
+              {MELBOURNE_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={mbLayers.includes(l.id)} onChange={e => setMbLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> {l.label}</label>)}
+              <small>Brevard County GIS, utility service areas. Open a parcel in the area for its Melbourne status.</small>
             </div>}
             <div className="toggle-row"><span>Zoning (local, not statewide)</span><button className={`toggle ${view.visible ? 'on' : ''}`} role="switch" aria-checked={view.visible} aria-label="Show zoning layer" onClick={() => setView(current => ({ ...current, visible: !current.visible }))}><span/></button></div>
             <div className="opacity-row"><span>Opacity</span><input aria-label="Zoning overlay opacity" type="range" min="0.1" max="0.85" step="0.05" value={opacity} onChange={e => setOpacity(Number(e.target.value))}/><span>{Math.round(opacity * 100)}%</span></div>

@@ -6,6 +6,7 @@ import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
 import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
 import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
+import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
 import { PALM_BAY_BOUNDS, PALM_BAY_LAYERS, palmBayTiles } from '../lib/palmBay';
@@ -29,6 +30,8 @@ interface Props {
   cocoa?: string[];
   /** Titusville utility layers that are switched on (ids from TITUSVILLE_LAYERS). */
   titusville?: string[];
+  /** Melbourne utility-area layers that are switched on (ids from MELBOURNE_LAYERS). */
+  melbourne?: string[];
   selectedLot: LotFeature | null;
   pins?: Pin[];
   activePin?: number | null;
@@ -163,6 +166,10 @@ export default function MapView(props: Props) {
             tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
             attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
           instance.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } }, before);
+          for (const l of MELBOURNE_LAYERS) {
+            instance.addSource(`mb-${l.id}`, { type: 'raster', tileSize: 512, bounds: MELBOURNE_BOUNDS, tiles: [melbourneTiles(l.layer)], attribution: 'Brevard County GIS (Melbourne utility service areas)' });
+            instance.addLayer({ id: `mb-${l.id}`, type: 'raster', source: `mb-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.55 } }, before);
+          }
           for (const l of TITUSVILLE_LAYERS) {
             instance.addSource(`tv-${l.id}`, { type: 'raster', tileSize: 512, bounds: TITUSVILLE_BOUNDS, tiles: [titusvilleTiles(l)], attribution: 'City of Titusville GIS' });
             instance.addLayer({ id: `tv-${l.id}`, type: 'raster', source: `tv-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.9 } }, before);
@@ -419,6 +426,10 @@ export default function MapView(props: Props) {
     const m = map.current; if (!m || !ready) return;
     for (const l of TITUSVILLE_LAYERS) if (m.getLayer(`tv-${l.id}`)) m.setLayoutProperty(`tv-${l.id}`, 'visibility', props.titusville?.includes(l.id) ? 'visible' : 'none');
   }, [props.titusville, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const l of MELBOURNE_LAYERS) if (m.getLayer(`mb-${l.id}`)) m.setLayoutProperty(`mb-${l.id}`, 'visibility', props.melbourne?.includes(l.id) ? 'visible' : 'none');
+  }, [props.melbourne, ready]);
 
   useEffect(() => {
     const m = map.current;

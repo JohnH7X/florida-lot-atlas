@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { melbourneUtilitiesAt, type MelbourneUtilities } from '../lib/melbourne';
 import { titusvilleUtilitiesAt, type TitusvilleUtilities } from '../lib/titusville';
 import { cocoaUtilitiesAt, type CocoaUtilities } from '../lib/cocoa';
 import { palmBayUtilitiesAt, type PalmBayUtilities } from '../lib/palmBayUtilities';
@@ -54,6 +55,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   useEffect(() => {
     let active = true; setTv('loading');
     void titusvilleUtilitiesAt(lot).then(r => { if (active) setTv(r); }).catch(() => { if (active) setTv(null); });
+    return () => { active = false; };
+  }, [lot]);
+  const [mb, setMb] = useState<MelbourneUtilities | null | 'loading'>(null);
+  useEffect(() => {
+    let active = true; setMb('loading');
+    void melbourneUtilitiesAt(lot).then(r => { if (active) setMb(r); }).catch(() => { if (active) setMb(null); });
     return () => { active = false; };
   }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
@@ -216,6 +223,17 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {mb && mb !== 'loading' && <div className="pb-util">
+          <b>City of Melbourne utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>{mb.inCity ? 'Inside the City of Melbourne' : 'Outside the City of Melbourne'}</b></li>
+            <li className={mb.waterArea ? 'ok' : 'q'}><span>Water service area</span><b>{mb.waterArea ? 'Inside the Melbourne water service area' : 'Outside the Melbourne water service area'}</b></li>
+            <li className={mb.sewerArea ? 'ok' : 'q'}><span>Sewer service area</span><b>{mb.sewerArea ? 'Inside the Melbourne sewer service area' : 'Outside the Melbourne sewer service area'}</b></li>
+            {mb.waste && <li className="q"><span>Trash (zone {mb.waste.zone})</span><b>{mb.waste.trash}</b></li>}
+            {mb.waste && <li className="q"><span>Recycling · yard · bulk</span><b>{[mb.waste.recycle, mb.waste.yard, mb.waste.bulk].join(' · ')}</b></li>}
+          </ul>
+          <p className="detail-foot">A service area means Melbourne is the utility that serves the area, not that a line reaches the lot. Melbourne does not publish its water and sewer line maps publicly, so mains and hydrants are not shown. Confirm with Melbourne Public Works &amp; Utilities. Sources: Brevard County GIS utility service areas; City of Melbourne GIS (solid waste zones, city boundary).</p>
+        </div>}
         {tv && tv !== 'loading' && <div className="pb-util">
           <b>City of Titusville utilities</b>
           <ul>
