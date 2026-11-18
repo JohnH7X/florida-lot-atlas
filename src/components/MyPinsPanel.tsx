@@ -1,5 +1,6 @@
-import { Crosshair, Download, MapPin, Trash2, X } from 'lucide-react';
-import { MY_PIN_STATUS, myPinsCsv, downloadText, type MyPin, type MyPinStatus } from '../lib/myPins';
+import { useState } from 'react';
+import { Cloud, Crosshair, Download, MapPin, Trash2, X } from 'lucide-react';
+import { MY_PIN_STATUS, myPinsCsv, downloadText, type CloudState, type MyPin, type MyPinStatus } from '../lib/myPins';
 
 interface Props {
   pins: MyPin[];
@@ -15,9 +16,14 @@ interface Props {
   onClear: () => void;
   onFly: (pin: MyPin) => void;
   onOpenParcel: (pin: MyPin) => void;
+  cloud: CloudState;
+  onConnect: (passphrase: string) => Promise<string>;
+  onDisconnect: () => void;
 }
 
 export default function MyPinsPanel(p: Props) {
+  const [asking, setAsking] = useState(false), [pass, setPass] = useState(''), [err, setErr] = useState('');
+  const label = p.cloud === 'synced' ? 'Synced with your DRE cloud' : p.cloud === 'syncing' ? 'Syncing…' : p.cloud === 'offline' ? 'Offline — will retry' : p.cloud === 'auth' ? 'Passphrase rejected' : '';
   return <section className="my-pins" aria-label="My research pins">
     <div className="my-pins-head"><strong><MapPin size={14}/> My pins{p.pins.length ? ` (${p.pins.length})` : ''}</strong>
       {p.pins.length > 0 && <span className="my-pins-tools">
@@ -28,6 +34,17 @@ export default function MyPinsPanel(p: Props) {
     <div className="my-pins-actions">
       <button className={`pin-btn ${p.placing ? 'on' : ''}`} onClick={p.onTogglePlacing}><Crosshair size={13}/> {p.placing ? 'Click the map… (done)' : 'Drop a pin'}</button>
       {p.canPinParcel && <button className="pin-btn" onClick={p.onPinParcel}><MapPin size={13}/> Pin open parcel</button>}
+    </div>
+    <div className="cloud-row">
+      {p.cloud === 'off' || p.cloud === 'auth'
+        ? (asking
+          ? <form onSubmit={async e => { e.preventDefault(); setErr(''); const m = await p.onConnect(pass); if (m) setErr(m); else { setAsking(false); setPass(''); } }}>
+              <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Your DRE passphrase" aria-label="DRE passphrase" autoComplete="off"/>
+              <button className="pin-btn" type="submit" disabled={!pass.trim()}>Connect</button>
+              {(err || p.cloud === 'auth') && <small className="cloud-err">{err || 'Wrong passphrase.'}</small>}
+            </form>
+          : <button className="text-button" onClick={() => setAsking(true)}><Cloud size={12}/> Sync pins with your DRE cloud</button>)
+        : <span className="cloud-ok"><Cloud size={12}/> {label}<button className="text-button" onClick={p.onDisconnect}>Disconnect</button></span>}
     </div>
     {p.placing && <p className="search-hint">Click anywhere on the map to drop a pin. Esc or the button ends it. Drag a pin to move it.</p>}
     {p.pins.length === 0 && !p.placing && <p className="search-hint">Drop pins on places you want to research later. They stay in this browser.</p>}

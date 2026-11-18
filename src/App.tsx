@@ -295,7 +295,7 @@ export default function App() {
           onTogglePlacing={() => setPlacing(v => !v)}
           onPinParcel={() => { const c = selectedLot && lotCenter(selectedLot); if (!c || !selectedLot) return; const pr = selectedLot.properties as Record<string, unknown>; setActiveMine(mine.add(c[0], c[1], String(pr.PHY_ADDR1 || pr.LABEL || '').trim() || 'Parcel')); }}
           onSelect={setActiveMine} onUpdate={mine.update} onRemove={mine.remove} onClear={() => { mine.clear(); setActiveMine(null); }}
-          onFly={pin => setFocus({ coordinates: [pin.lng, pin.lat], zoom: Math.max(view.zoom, 16.5), serial: Date.now() })}
+          cloud={mine.cloud} onConnect={mine.connect} onDisconnect={mine.disconnect} onFly={pin => setFocus({ coordinates: [pin.lng, pin.lat], zoom: Math.max(view.zoom, 16.5), serial: Date.now() })}
           onOpenParcel={pin => void lotAt([pin.lng, pin.lat])}/>
         <details className="filters" open={filtersOpen} onToggle={e => setFiltersOpen((e.target as HTMLDetailsElement).open)}>
           <summary><Layers size={16}/> Layers & filters<span className="filters-state">{scope}{view.milieu ? ' · filtered' : ''}</span><ChevronDown size={14}/></summary>

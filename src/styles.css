@@ -295,3 +295,9 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .my-tear.active{outline:3px solid #ffd400;outline-offset:1px}
 .my-tear-label{position:absolute;top:40px;left:50%;transform:translateX(-50%);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;background:#fffffff0;border:1px solid #d9d2ea;border-radius:3px;padding:1px 5px;font-size:10px;color:#3b2a66;pointer-events:none}
 .map-wrap.placing .maplibregl-canvas{cursor:crosshair!important}
+
+.cloud-row{margin:8px 0 2px;font-size:10px;color:#6c7b66}
+.cloud-row form{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cloud-row input{flex:1;min-width:120px;border:1px solid #dce1d5;border-radius:4px;padding:6px 8px;font-size:11px;background:#fff}
+.cloud-ok{display:flex;align-items:center;gap:6px}.cloud-ok .text-button{margin-left:auto}
+.cloud-err{color:#b4452d;width:100%}
