@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { cocoaUtilitiesAt, type CocoaUtilities } from '../lib/cocoa';
 import { palmBayUtilitiesAt, type PalmBayUtilities } from '../lib/palmBayUtilities';
 import { countySales, SALES_COUNTIES, type Sale, FT_PER_M, infrastructureAt, type Infra, lotArea, lotCenter, lotEdges, SQFT_PER_M2, streetViewUrl, unitsInLot, type LotFeature, type Unit } from '../lib/lots';
 
@@ -40,6 +41,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   useEffect(() => {
     let active = true; setPalmBay('loading');
     void palmBayUtilitiesAt(lot).then(r => { if (active) setPalmBay(r); }).catch(() => { if (active) setPalmBay(null); });
+    return () => { active = false; };
+  }, [lot]);
+  const [cocoa, setCocoa] = useState<CocoaUtilities | null | 'loading'>(null);
+  useEffect(() => {
+    let active = true; setCocoa('loading');
+    void cocoaUtilitiesAt(lot).then(r => { if (active) setCocoa(r); }).catch(() => { if (active) setCocoa(null); });
     return () => { active = false; };
   }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
@@ -202,6 +209,18 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {cocoa && cocoa !== 'loading' && <div className="pb-util">
+          <b>City of Cocoa utilities</b>
+          <ul>
+            <li className={cocoa.water.access ? 'ok' : 'q'}><span>Cocoa water</span><b>{cocoa.water.access ? `Customer record on file (${cocoa.water.where})` : cocoa.water.area ? 'Inside the water service area, no customer record' : 'Not on the city’s water list'}</b></li>
+            <li className={cocoa.sewer.access ? 'ok' : cocoa.sewer.area ? 'q' : 'warn'}><span>Cocoa sewer</span><b>{cocoa.sewer.access ? `Customer record on file (${cocoa.sewer.where})` : cocoa.sewer.area ? 'Inside the sewer service area, no customer record' : 'Not on the city’s sewer list'}</b></li>
+            <li className="q"><span>City limits</span><b>{cocoa.inCity ? 'Inside the City of Cocoa' : 'Outside the City of Cocoa'}</b></li>
+            {cocoa.serviceLine && <li className={/lead|galvan/i.test(cocoa.serviceLine.customer) && !/non-lead/i.test(cocoa.serviceLine.customer) ? 'warn' : 'q'}><span>Water service line</span><b>Customer side: {cocoa.serviceLine.customer || 'Unknown'} · utility side: {cocoa.serviceLine.utility || 'Unknown'}</b></li>}
+            {cocoa.waste && <li className="q"><span>Trash</span><b>{cocoa.waste.trash || '—'}</b></li>}
+            {cocoa.waste && <li className="q"><span>Recycling · yard · bulk</span><b>{[cocoa.waste.recycle, cocoa.waste.yard, cocoa.waste.bulk].map(v => v || '—').join(' · ')}</b></li>}
+          </ul>
+          <p className="detail-foot">A “customer record” means the parcel is on the City of Cocoa’s water or sewer account list, not that a line is guaranteed at the lot. Confirm with Cocoa Utilities. Sources: City of Cocoa GIS (water and sewer access, waste collection, lead and copper service line inventory) and Brevard County GIS utility service areas.</p>
+        </div>}
         {palmBay === 'loading' && <p className="detail-note">Checking the City of Palm Bay utilities map…</p>}
         {palmBay && palmBay !== 'loading' && <div className="pb-util">
           <b>City of Palm Bay utilities</b>

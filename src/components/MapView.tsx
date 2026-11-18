@@ -6,6 +6,7 @@ import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
 import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
 import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
+import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
 import { PALM_BAY_BOUNDS, PALM_BAY_LAYERS, palmBayTiles } from '../lib/palmBay';
 import { countySalesForLots } from '../lib/countySalesBulk';
 
@@ -23,6 +24,8 @@ interface Props {
   hideTransfers?: boolean;
   /** Palm Bay city-map layers that are switched on (ids from PALM_BAY_LAYERS). */
   palmBay?: string[];
+  /** Cocoa utility-area layers that are switched on (ids from COCOA_LAYERS). */
+  cocoa?: string[];
   selectedLot: LotFeature | null;
   pins?: Pin[];
   activePin?: number | null;
@@ -157,6 +160,10 @@ export default function MapView(props: Props) {
             tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
             attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
           instance.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } }, before);
+          for (const l of COCOA_LAYERS) {
+            instance.addSource(`cc-${l.id}`, { type: 'raster', tileSize: 512, bounds: COCOA_BOUNDS, tiles: [cocoaTiles(l.layer)], attribution: 'Brevard County GIS (Cocoa utility service areas)' });
+            instance.addLayer({ id: `cc-${l.id}`, type: 'raster', source: `cc-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.55 } }, before);
+          }
           // City of Palm Bay public map layers (image exports from the city's own GIS), off until switched on.
           for (const l of PALM_BAY_LAYERS) {
             instance.addSource(`pb-${l.id}`, { type: 'raster', tileSize: 512, bounds: PALM_BAY_BOUNDS, tiles: [palmBayTiles(l.service)], attribution: 'City of Palm Bay GIS' });
@@ -397,6 +404,10 @@ export default function MapView(props: Props) {
     const m = map.current; if (!m || !ready) return;
     for (const l of PALM_BAY_LAYERS) if (m.getLayer(`pb-${l.id}`)) m.setLayoutProperty(`pb-${l.id}`, 'visibility', props.palmBay?.includes(l.id) ? 'visible' : 'none');
   }, [props.palmBay, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const l of COCOA_LAYERS) if (m.getLayer(`cc-${l.id}`)) m.setLayoutProperty(`cc-${l.id}`, 'visibility', props.cocoa?.includes(l.id) ? 'visible' : 'none');
+  }, [props.cocoa, ready]);
 
   useEffect(() => {
     const m = map.current;
