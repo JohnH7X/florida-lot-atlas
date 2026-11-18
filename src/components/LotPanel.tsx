@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { inSatelliteBeach } from '../lib/satelliteBeach';
 import { brevardUtilitiesAt, type BrevardUtilities } from '../lib/brevardUtilities';
 import { rockledgeUtilitiesAt, type RockledgeUtilities } from '../lib/rockledge';
 import { melbourneUtilitiesAt, type MelbourneUtilities } from '../lib/melbourne';
@@ -75,6 +76,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   useEffect(() => {
     let active = true; setBu('loading');
     void brevardUtilitiesAt(lot).then(r => { if (active) setBu(r); }).catch(() => { if (active) setBu(null); });
+    return () => { active = false; };
+  }, [lot]);
+  const [sb, setSb] = useState(false);
+  useEffect(() => {
+    let active = true; setSb(false);
+    void inSatelliteBeach(lot).then(r => { if (active) setSb(r); }).catch(() => undefined);
     return () => { active = false; };
   }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
@@ -237,6 +244,14 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {sb && <div className="pb-util">
+          <b>City of Satellite Beach utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>Inside the City of Satellite Beach</b></li>
+            <li className="q"><span>Water and sewer lines</span><b>Not published by the city</b></li>
+          </ul>
+          <p className="detail-foot">Satellite Beach does not run its own water or sewer maps publicly. The county’s service-area maps put the city inside the City of Melbourne’s water service area and Brevard County’s South Beaches sewer area; those blocks appear on this tab when they cover the parcel. Confirm with Satellite Beach Public Works. Source: City of Satellite Beach GIS (city boundary).</p>
+        </div>}
         {bu && bu !== 'loading' && <div className="pb-util">
           <b>Brevard County Utility Services</b>
           <ul>
