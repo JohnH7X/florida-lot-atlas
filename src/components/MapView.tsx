@@ -267,23 +267,36 @@ export default function MapView(props: Props) {
             callbacks.current.onPointClick?.([e.lngLat.lng, e.lngLat.lat]);
           });
           instance.on('moveend', () => refreshLots());
-          // Right-click (long-press on touch) anywhere offers Street View at that spot.
-          instance.on('contextmenu', async e => {
-            if (!instance) return;
-            const url = streetViewUrl([e.lngLat.lng, e.lngLat.lat]);
-            // Right-clicking a parcel with a street address copies that address to the clipboard.
+          // Right-click copies the parcel's address (or its parcel number when it has none). The copy runs on the mouse-down,
+          // which is a real user gesture; browsers refuse clipboard writes made later from the context-menu event.
+          let copied: { text: string; ok: boolean; kind: string } | null = null;
+          const copyText = (text: string) => {
+            let ok = false;
+            try {
+              const t = document.createElement('textarea'); t.value = text; t.setAttribute('readonly', ''); t.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+              document.body.appendChild(t); t.select(); t.setSelectionRange(0, text.length); ok = document.execCommand('copy'); t.remove();
+            } catch { ok = false; }
+            if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => { if (copied && copied.text === text) copied.ok = true; }).catch(() => undefined);
+            return ok;
+          };
+          instance.on('mousedown', e => {
+            copied = null;
+            if (!instance || e.originalEvent.button !== 2) return;
             const hit = instance.getLayer('lot-hit') ? instance.queryRenderedFeatures(e.point, { layers: ['lot-hit'] })[0]?.properties : undefined;
-            const raw = hit && String(hit.PHY_ADDR1 || '').trim();
-            const addr = raw && !/^UNASSIGNED/i.test(raw) ? raw : '';
-            let note = '';
-            if (addr) {
-              let ok = false;
-              try { await navigator.clipboard.writeText(addr); ok = true; } catch {
-                try { const t = document.createElement('textarea'); t.value = addr; t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select(); ok = document.execCommand('copy'); t.remove(); } catch { ok = false; }
-              }
-              note = ok ? `<div><b>Copied:</b> ${esc(addr)}</div>` : `<div>${esc(addr)} <small>(copy blocked by the browser)</small></div>`;
-            }
-            new maplibregl.Popup({ closeButton: true, className: 'sv-popup' }).setLngLat(e.lngLat)
+            if (!hit) return;
+            const raw = String(hit.PHY_ADDR1 || '').trim(), addr = raw && !/^UNASSIGNED/i.test(raw) ? raw : '';
+            const text = addr || String(hit.LABEL || hit.PARCEL_ID || '').trim();
+            if (!text) return;
+            copied = { text, ok: copyText(text), kind: addr ? 'address' : 'parcel number' };
+          });
+          // Right-click (long-press on touch) anywhere offers Street View at that spot.
+          let svPopup: maplibregl.Popup | null = null;
+          instance.on('contextmenu', e => {
+            if (!instance) return;
+            svPopup?.remove();
+            const url = streetViewUrl([e.lngLat.lng, e.lngLat.lat]);
+            const note = copied ? (copied.ok ? `<div><b>Copied ${copied.kind}:</b> ${esc(copied.text)}</div>` : `<div>${esc(copied.text)} <small>(your browser blocked the copy — select and copy it)</small></div>`) : '';
+            svPopup = new maplibregl.Popup({ closeButton: true, className: 'sv-popup' }).setLngLat(e.lngLat)
               .setHTML(`${note}<a href="${url}" target="_blank" rel="noreferrer">Open Street View here ↗</a>`).addTo(instance);
           });
           instance.on('click', 'zoning-fill', e => {
