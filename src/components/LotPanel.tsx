@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { brevardUtilitiesAt, type BrevardUtilities } from '../lib/brevardUtilities';
 import { rockledgeUtilitiesAt, type RockledgeUtilities } from '../lib/rockledge';
 import { melbourneUtilitiesAt, type MelbourneUtilities } from '../lib/melbourne';
 import { titusvilleUtilitiesAt, type TitusvilleUtilities } from '../lib/titusville';
@@ -68,6 +69,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   useEffect(() => {
     let active = true; setRl('loading');
     void rockledgeUtilitiesAt(lot).then(r => { if (active) setRl(r); }).catch(() => { if (active) setRl(null); });
+    return () => { active = false; };
+  }, [lot]);
+  const [bu, setBu] = useState<BrevardUtilities | null | 'loading'>(null);
+  useEffect(() => {
+    let active = true; setBu('loading');
+    void brevardUtilitiesAt(lot).then(r => { if (active) setBu(r); }).catch(() => { if (active) setBu(null); });
     return () => { active = false; };
   }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
@@ -230,6 +237,13 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {bu && bu !== 'loading' && <div className="pb-util">
+          <b>Brevard County Utility Services</b>
+          <ul>
+            {bu.areas.map(a => <li key={a.label} className="ok"><span>{a.kind === 'sewer' ? 'Sewer service area' : 'Water service area'}</span><b>{a.label}</b></li>)}
+          </ul>
+          <p className="detail-foot">The parcel is inside this Brevard County Utility Services service area. That means the county is the utility for the area, not that a line reaches the lot. Confirm with Brevard County Utility Services. Source: Brevard County GIS.</p>
+        </div>}
         {rl && rl !== 'loading' && <div className="pb-util">
           <b>City of Rockledge utilities</b>
           <ul>

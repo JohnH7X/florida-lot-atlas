@@ -6,6 +6,7 @@ import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
 import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
 import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
+import { BREVARD_UTIL_BOUNDS, BREVARD_UTIL_LAYERS, brevardUtilTiles } from '../lib/brevardUtilities';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
@@ -32,6 +33,8 @@ interface Props {
   titusville?: string[];
   /** Melbourne utility-area layers that are switched on (ids from MELBOURNE_LAYERS). */
   melbourne?: string[];
+  /** Brevard County Utility Services layers that are switched on (ids from BREVARD_UTIL_LAYERS). */
+  brevardUtil?: string[];
   selectedLot: LotFeature | null;
   pins?: Pin[];
   activePin?: number | null;
@@ -166,6 +169,10 @@ export default function MapView(props: Props) {
             tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
             attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
           instance.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } }, before);
+          for (const l of BREVARD_UTIL_LAYERS) {
+            instance.addSource(`bu-${l.id}`, { type: 'raster', tileSize: 512, bounds: BREVARD_UTIL_BOUNDS, tiles: [brevardUtilTiles(l.layer)], attribution: 'Brevard County GIS (Utility Services service areas)' });
+            instance.addLayer({ id: `bu-${l.id}`, type: 'raster', source: `bu-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.55 } }, before);
+          }
           for (const l of MELBOURNE_LAYERS) {
             instance.addSource(`mb-${l.id}`, { type: 'raster', tileSize: 512, bounds: MELBOURNE_BOUNDS, tiles: [melbourneTiles(l.layer)], attribution: 'Brevard County GIS (Melbourne utility service areas)' });
             instance.addLayer({ id: `mb-${l.id}`, type: 'raster', source: `mb-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.55 } }, before);
@@ -430,6 +437,10 @@ export default function MapView(props: Props) {
     const m = map.current; if (!m || !ready) return;
     for (const l of MELBOURNE_LAYERS) if (m.getLayer(`mb-${l.id}`)) m.setLayoutProperty(`mb-${l.id}`, 'visibility', props.melbourne?.includes(l.id) ? 'visible' : 'none');
   }, [props.melbourne, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const l of BREVARD_UTIL_LAYERS) if (m.getLayer(`bu-${l.id}`)) m.setLayoutProperty(`bu-${l.id}`, 'visibility', props.brevardUtil?.includes(l.id) ? 'visible' : 'none');
+  }, [props.brevardUtil, ready]);
 
   useEffect(() => {
     const m = map.current;
