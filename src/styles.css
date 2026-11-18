@@ -314,3 +314,5 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .pb-hookup>div{display:flex;gap:14px;padding:3px 0;border-bottom:1px solid #eef1e9}
 .pb-hookup>div span:first-child{font-weight:600;min-width:46px}
 .pb-hookup small{display:block;font-size:9.5px;color:#7a866f;margin-top:5px}
+
+.pb-dot{display:inline-block;width:9px;height:9px;border-radius:50%}

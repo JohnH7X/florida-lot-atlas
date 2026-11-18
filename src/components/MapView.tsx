@@ -6,6 +6,7 @@ import { getJSON } from '../lib/data';
 import type { FeatureCollection, Polygon } from 'geojson';
 import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf, streetViewUrl, type LotFeature } from '../lib/lots';
 import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
+import { CB_BOUNDS, CB_LAYERS, CB_MIN_ZOOM, fetchCbLayer } from '../lib/cocoaBeach';
 import { BREVARD_UTIL_BOUNDS, BREVARD_UTIL_LAYERS, brevardUtilTiles } from '../lib/brevardUtilities';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
@@ -35,6 +36,8 @@ interface Props {
   melbourne?: string[];
   /** Brevard County Utility Services layers that are switched on (ids from BREVARD_UTIL_LAYERS). */
   brevardUtil?: string[];
+  /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
+  cocoaBeach?: string[];
   selectedLot: LotFeature | null;
   pins?: Pin[];
   activePin?: number | null;
@@ -76,6 +79,7 @@ export default function MapView(props: Props) {
   const [lotStatus, setLotStatus] = useState('');
   const [satellite, setSatellite] = useState(() => { if (/(^|[#&?])map=satellite/.test(window.location.hash + window.location.search)) return true; try { return localStorage.getItem('atlas-basemap') === 'satellite'; } catch { return false; } });
   const refreshLotsRef = useRef<() => void>(() => {});
+  const refreshCbRef = useRef<() => void>(() => {});
   const pinMarkers = useRef<maplibregl.Marker[]>([]);
   const [saleColors, setSaleColors] = useState(() => { try { return localStorage.getItem('atlas-sale-colors') !== '0'; } catch { return true; } });
   const [saleCounts, setSaleCounts] = useState<{ s2026: number; s2025: number; sOlder: number; none: number } | null>(null);
@@ -169,6 +173,27 @@ export default function MapView(props: Props) {
             tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
             attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
           instance.addLayer({ id: 'satellite', type: 'raster', source: 'satellite', layout: { visibility: 'none' } }, before);
+          // Cocoa Beach's own network layers, fetched as vectors for the map view while switched on.
+          for (const l of CB_LAYERS) {
+            instance.addSource(`cbv-${l.id}`, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            if (l.kind === 'line') instance.addLayer({ id: `cbv-${l.id}`, type: 'line', source: `cbv-${l.id}`, paint: { 'line-color': l.color, 'line-width': ['interpolate', ['linear'], ['zoom'], 15, 1.2, 19, 3] } });
+            else instance.addLayer({ id: `cbv-${l.id}`, type: 'circle', source: `cbv-${l.id}`, paint: { 'circle-color': l.color, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 2.5, 19, 6], 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+          }
+          let cbAbort: AbortController | null = null;
+          const refreshCb = () => {
+            if (!instance) return;
+            cbAbort?.abort(); cbAbort = new AbortController();
+            const signal = cbAbort.signal, on = callbacks.current.cocoaBeach || [], b = instance.getBounds();
+            const view: [number, number, number, number] = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+            const near = instance.getZoom() >= CB_MIN_ZOOM && view[0] < CB_BOUNDS[2] && view[2] > CB_BOUNDS[0] && view[1] < CB_BOUNDS[3] && view[3] > CB_BOUNDS[1];
+            for (const l of CB_LAYERS) {
+              const src = instance.getSource(`cbv-${l.id}`) as maplibregl.GeoJSONSource | undefined; if (!src) continue;
+              if (!on.includes(l.id) || !near) { src.setData({ type: 'FeatureCollection', features: [] }); continue; }
+              void fetchCbLayer(l, view, signal).then(d => { if (!signal.aborted) src.setData(d as FeatureCollection); }).catch(() => undefined);
+            }
+          };
+          refreshCbRef.current = refreshCb;
+          instance.on('moveend', refreshCb);
           for (const l of BREVARD_UTIL_LAYERS) {
             instance.addSource(`bu-${l.id}`, { type: 'raster', tileSize: 512, bounds: BREVARD_UTIL_BOUNDS, tiles: [brevardUtilTiles(l.layer)], attribution: 'Brevard County GIS (Utility Services service areas)' });
             instance.addLayer({ id: `bu-${l.id}`, type: 'raster', source: `bu-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.55 } }, before);
@@ -441,6 +466,7 @@ export default function MapView(props: Props) {
     const m = map.current; if (!m || !ready) return;
     for (const l of BREVARD_UTIL_LAYERS) if (m.getLayer(`bu-${l.id}`)) m.setLayoutProperty(`bu-${l.id}`, 'visibility', props.brevardUtil?.includes(l.id) ? 'visible' : 'none');
   }, [props.brevardUtil, ready]);
+  useEffect(() => { if (ready) refreshCbRef.current(); }, [props.cocoaBeach, ready]);
 
   useEffect(() => {
     const m = map.current;

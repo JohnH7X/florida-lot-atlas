@@ -3,6 +3,8 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { cocoaBeachUtilitiesAt, type CocoaBeachUtilities } from '../lib/cocoaBeach';
+import { brevardCityAt } from '../lib/brevardCities';
 import { inSatelliteBeach } from '../lib/satelliteBeach';
 import { brevardUtilitiesAt, type BrevardUtilities } from '../lib/brevardUtilities';
 import { rockledgeUtilitiesAt, type RockledgeUtilities } from '../lib/rockledge';
@@ -82,6 +84,14 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   useEffect(() => {
     let active = true; setSb(false);
     void inSatelliteBeach(lot).then(r => { if (active) setSb(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
+  const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [bcity, setBcity] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true; setCb('loading'); setBcity(null);
+    void cocoaBeachUtilitiesAt(lot).then(r => { if (active) setCb(r); }).catch(() => { if (active) setCb(null); });
+    void brevardCityAt(lot).then(r => { if (active) setBcity(r); }).catch(() => undefined);
     return () => { active = false; };
   }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
@@ -244,6 +254,25 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {cb && cb !== 'loading' && <div className="pb-util">
+          <b>City of Cocoa Beach utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>{cb.inCity ? 'Inside the City of Cocoa Beach' : 'Outside the City of Cocoa Beach'}</b></li>
+            {([['Water main', cb.waterMain, 'water main'], ['Sewer main', cb.sewerMain, 'sewer main'], ['Reclaimed water line', cb.reclaimMain, 'reclaimed line']] as const).map(([label, m]) => <li key={label} className={m ? (m.feet <= 30 ? 'ok' : 'q') : 'q'}><span>{label}</span><b>{m ? `${m.feet < 1 ? 'Touches the lot' : `${Math.round(m.feet)} ft from the lot`}${[m.size ? ` · ${m.size} in` : '', m.material && m.material !== 'UNK' ? ` ${m.material}` : ''].join('')}` : 'None mapped within about 500 ft'}</b></li>)}
+            <li className="q"><span>Water meter on the lot</span><b>{cb.meters ? `Yes${cb.meters.count > 1 ? ` (${cb.meters.count})` : ''}${cb.meters.size ? ` · ${cb.meters.size / 100} in` : ''}` : 'None on record'}</b></li>
+            <li className="q"><span>Reclaimed water zone</span><b>{cb.reclaimZone ? 'Inside a reclaimed water phase area' : 'Not in a mapped phase area'}</b></li>
+            <li className="q"><span>Nearest fire hydrant</span><b>{cb.hydrant ? `${cb.hydrant.feet < 1 ? 'On the lot' : `${Math.round(cb.hydrant.feet)} ft`}${cb.hydrant.id ? ` · ${cb.hydrant.id}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Distances run from the lot outline to the lines the City of Cocoa Beach has mapped. A main nearby does not guarantee a connection is allowed or paid for. Cocoa Beach buys its drinking water from the City of Cocoa, so the Cocoa block below may also show a customer record. Confirm with Cocoa Beach Public Works. Source: City of Cocoa Beach GIS.</p>
+        </div>}
+        {(bcity === 'WEST MELBOURNE' || bcity === 'CAPE CANAVERAL') && <div className="pb-util">
+          <b>{bcity === 'WEST MELBOURNE' ? 'City of West Melbourne' : 'City of Cape Canaveral'} utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>Inside the {bcity === 'WEST MELBOURNE' ? 'City of West Melbourne' : 'City of Cape Canaveral'}</b></li>
+            <li className="q"><span>Water and sewer lines</span><b>Not published by the city</b></li>
+          </ul>
+          <p className="detail-foot">{bcity === 'WEST MELBOURNE' ? 'West Melbourne does not publish water, sewer or hydrant maps publicly. County maps put it inside the City of Melbourne’s water service area (see the Melbourne block). It is not inside a Melbourne or county sewer service area, so confirm sewer with West Melbourne Public Works.' : 'Cape Canaveral does not publish water, sewer or hydrant maps publicly. County maps put it inside the City of Cocoa’s water service area (see the Cocoa block when a customer record exists). No county sewer area covers it, so confirm sewer with Cape Canaveral Public Works.'} Source: Brevard County GIS (city boundaries).</p>
+        </div>}
         {sb && <div className="pb-util">
           <b>City of Satellite Beach utilities</b>
           <ul>
