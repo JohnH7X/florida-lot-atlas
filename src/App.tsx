@@ -13,6 +13,9 @@ import { MELBOURNE_LAYERS } from './lib/melbourne';
 import { BREVARD_UTIL_LAYERS } from './lib/brevardUtilities';
 import { CB_LAYERS } from './lib/cocoaBeach';
 import { LEE_LAYERS } from './lib/leeCounty';
+import { NP_LAYERS } from './lib/northPort';
+import { CH_LAYERS } from './lib/charlotte';
+import { PSL_LAYERS } from './lib/portStLucie';
 import MyPinsPanel from './components/MyPinsPanel';
 import { useMyPins } from './lib/myPins';
 import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
@@ -48,6 +51,15 @@ export default function App() {
   const [leeOn, setLeeOn] = useState(() => { try { return localStorage.getItem('atlas-lee') === '1'; } catch { return false; } });
   const [leeLayers, setLeeLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-lee-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return LEE_LAYERS.filter(l => l.on).map(l => l.id); });
   useEffect(() => { try { localStorage.setItem('atlas-lee', leeOn ? '1' : '0'); localStorage.setItem('atlas-lee-layers', JSON.stringify(leeLayers)); } catch { /* ignore */ } }, [leeOn, leeLayers]);
+  const [npOn, setNpOn] = useState(() => { try { return localStorage.getItem('atlas-northport') === '1'; } catch { return false; } });
+  const [npLayers, setNpLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-northport-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return NP_LAYERS.filter(l => l.on).map(l => l.id); });
+  useEffect(() => { try { localStorage.setItem('atlas-northport', npOn ? '1' : '0'); localStorage.setItem('atlas-northport-layers', JSON.stringify(npLayers)); } catch { /* ignore */ } }, [npOn, npLayers]);
+  const [chOn, setChOn] = useState(() => { try { return localStorage.getItem('atlas-charlotte') === '1'; } catch { return false; } });
+  const [chLayers, setChLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-charlotte-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return CH_LAYERS.filter(l => l.on).map(l => l.id); });
+  useEffect(() => { try { localStorage.setItem('atlas-charlotte', chOn ? '1' : '0'); localStorage.setItem('atlas-charlotte-layers', JSON.stringify(chLayers)); } catch { /* ignore */ } }, [chOn, chLayers]);
+  const [pslOn, setPslOn] = useState(() => { try { return localStorage.getItem('atlas-stlucie') === '1'; } catch { return false; } });
+  const [pslLayers, setPslLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-stlucie-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return PSL_LAYERS.filter(l => l.on).map(l => l.id); });
+  useEffect(() => { try { localStorage.setItem('atlas-stlucie', pslOn ? '1' : '0'); localStorage.setItem('atlas-stlucie-layers', JSON.stringify(pslLayers)); } catch { /* ignore */ } }, [pslOn, pslLayers]);
   useEffect(() => { try { localStorage.setItem('atlas-cocoabeach', cbOn ? '1' : '0'); localStorage.setItem('atlas-cocoabeach-layers', JSON.stringify(cbLayers)); } catch { /* ignore */ } }, [cbOn, cbLayers]);
   const [buOn, setBuOn] = useState(() => { try { return localStorage.getItem('atlas-brevardutil') === '1'; } catch { return false; } });
   const [buLayers, setBuLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-brevardutil-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return BREVARD_UTIL_LAYERS.filter(l => l.on).map(l => l.id); });
@@ -286,7 +298,7 @@ export default function App() {
       <nav className="header-actions"><button className="quiet-button" onClick={() => { setReportLot(null); setReportsOpen(true); }}><FolderOpen size={16}/> Property files</button><button className="quiet-button about-button" onClick={() => setAbout(true)}><Info size={16}/> About the data</button><button className="share-button" onClick={share}>{shareMessage === 'Link copied' ? <Check size={16}/> : <Copy size={16}/>}<span>{shareMessage || 'Share view'}</span></button></nav>
     </header>
     <main className="workspace">
-      {metadata && <MapView lee={leeOn ? leeLayers : []} cocoaBeach={cbOn ? cbLayers : []} brevardUtil={buOn ? buLayers : []} melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
+      {metadata && <MapView northPort={npOn ? npLayers : []} charlotte={chOn ? chLayers : []} stLucie={pslOn ? pslLayers : []} lee={leeOn ? leeLayers : []} cocoaBeach={cbOn ? cbLayers : []} brevardUtil={buOn ? buLayers : []} melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
         lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
@@ -360,6 +372,21 @@ export default function App() {
             {cbOn && <div className="pb-layers">
               {CB_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={cbLayers.includes(l.id)} onChange={e => setCbLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> <i className="pb-dot" style={{ background: l.color }}/>{l.label}</label>)}
               <small>City of Cocoa Beach GIS. Zoom in to see the lines.</small>
+            </div>}
+            <div className="toggle-row"><span>North Port utilities</span><button className={`toggle ${npOn ? 'on' : ''}`} role="switch" aria-checked={npOn} aria-label="Show North Port utility lines" onClick={() => setNpOn(v => !v)}><span/></button></div>
+            {npOn && <div className="pb-layers">
+              {NP_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={npLayers.includes(l.id)} onChange={e => setNpLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> <i className="pb-dot" style={{ background: l.color }}/>{l.label}</label>)}
+              <small>City of North Port GIS. Zoom in to see the lines.</small>
+            </div>}
+            <div className="toggle-row"><span>Charlotte County utilities</span><button className={`toggle ${chOn ? 'on' : ''}`} role="switch" aria-checked={chOn} aria-label="Show Charlotte County Utilities layers" onClick={() => setChOn(v => !v)}><span/></button></div>
+            {chOn && <div className="pb-layers">
+              {CH_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={chLayers.includes(l.id)} onChange={e => setChLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> <i className="pb-dot" style={{ background: l.color }}/>{l.label}</label>)}
+              <small>Charlotte County GIS (Port Charlotte and the rest of the county). Zoom in to see the lines. Punta Gorda runs its own utility.</small>
+            </div>}
+            <div className="toggle-row"><span>Port St. Lucie / St. Lucie County utilities</span><button className={`toggle ${pslOn ? 'on' : ''}`} role="switch" aria-checked={pslOn} aria-label="Show St. Lucie County utility layers" onClick={() => setPslOn(v => !v)}><span/></button></div>
+            {pslOn && <div className="pb-layers">
+              {PSL_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={pslLayers.includes(l.id)} onChange={e => setPslLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> <i className="pb-dot" style={{ background: l.color }}/>{l.label}</label>)}
+              <small>St. Lucie County GIS. Neither the city nor the county publishes water or sewer pipe maps, so this shows who serves each area plus hydrants.</small>
             </div>}
             <div className="toggle-row"><span>Lee County utilities</span><button className={`toggle ${leeOn ? 'on' : ''}`} role="switch" aria-checked={leeOn} aria-label="Show Lee County Utilities lines" onClick={() => setLeeOn(v => !v)}><span/></button></div>
             {leeOn && <div className="pb-layers">

@@ -5,6 +5,9 @@ import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
 import { cocoaBeachUtilitiesAt, type CocoaBeachUtilities } from '../lib/cocoaBeach';
 import { leeUtilitiesAt, type LeeUtilities } from '../lib/leeCounty';
+import { northPortUtilitiesAt, type NorthPortUtilities } from '../lib/northPort';
+import { charlotteUtilitiesAt, type CharlotteUtilities } from '../lib/charlotte';
+import { portStLucieUtilitiesAt, type PortStLucieUtilities } from '../lib/portStLucie';
 import { brevardCityAt } from '../lib/brevardCities';
 import { inSatelliteBeach } from '../lib/satelliteBeach';
 import { brevardUtilitiesAt, type BrevardUtilities } from '../lib/brevardUtilities';
@@ -88,6 +91,16 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
   const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [np, setNp] = useState<NorthPortUtilities | null>(null);
+  const [chc, setChc] = useState<CharlotteUtilities | null>(null);
+  const [psl, setPsl] = useState<PortStLucieUtilities | null>(null);
+  useEffect(() => {
+    let active = true; setNp(null); setChc(null); setPsl(null);
+    void northPortUtilitiesAt(lot).then(r => { if (active) setNp(r); }).catch(() => undefined);
+    void charlotteUtilitiesAt(lot).then(r => { if (active) setChc(r); }).catch(() => undefined);
+    void portStLucieUtilitiesAt(lot).then(r => { if (active) setPsl(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
   const [lee, setLee] = useState<LeeUtilities | null>(null);
   useEffect(() => {
     let active = true; setLee(null);
@@ -261,6 +274,38 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {np && <div className="pb-util">
+          <b>North Port utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>{np.inCity ? 'Inside the City of North Port' : 'Outside the City of North Port'}</b></li>
+            {np.serviceArea && <li className="q"><span>Utility service area</span><b>{np.serviceArea}</b></li>}
+            <li className="q"><span>Water availability zone</span><b>{np.waterZone ? 'Inside' : 'Outside'}</b></li>
+            <li className="q"><span>Sewer availability zone</span><b>{np.sewerZone ? 'Inside' : 'Outside'}</b></li>
+            {([['Water main', np.waterMain], ['Sewer main', np.sewerMain]] as const).map(([label, m]) => <li key={label} className={m ? (m.feet <= 30 ? 'ok' : 'q') : 'q'}><span>{label}</span><b>{m ? `${m.feet < 1 ? 'Touches the lot' : `${Math.round(m.feet)} ft from the lot`}${m.size ? ` · ${m.size} in` : ''}${m.kind ? ` · ${m.kind.toLowerCase()}` : ''}` : 'None mapped within about 500 ft'}</b></li>)}
+            <li className="q"><span>Nearest fire hydrant</span><b>{np.hydrant ? `${np.hydrant.feet < 1 ? 'On the lot' : `${Math.round(np.hydrant.feet)} ft`}${np.hydrant.id ? ` · ${np.hydrant.id}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Distances run from the lot outline to the lines North Port Utilities has mapped. Much of North Port still has no city water or sewer (wells and septic), so “none mapped” is common. A main nearby does not guarantee a connection is allowed or paid for. Confirm availability and any assessments with North Port Utilities. Source: City of North Port GIS.</p>
+        </div>}
+        {chc && <div className="pb-util">
+          <b>Charlotte County utilities</b>
+          <ul>
+            {chc.puntaGorda && <li className="q"><span>City limits</span><b>Inside the City of Punta Gorda (its own utility)</b></li>}
+            <li className="q"><span>Water service area</span><b>{chc.waterArea || 'Not in a mapped service area'}</b></li>
+            <li className="q"><span>Sewer service area</span><b>{chc.sewerArea || 'Not in a mapped service area'}</b></li>
+            {([['Water main', chc.waterMain], ['Sewer main', chc.sewerMain], ['Reclaimed water main', chc.reclaimMain]] as const).map(([label, m]) => <li key={label} className={m ? (m.feet <= 30 ? 'ok' : 'q') : 'q'}><span>{label}</span><b>{m ? `${m.feet < 1 ? 'Touches the lot' : `${Math.round(m.feet)} ft from the lot`}${m.size ? ` · ${m.size} in` : ''}${m.material && m.material !== 'Unknown' ? ` ${m.material}` : ''}${label === 'Sewer main' && m.kind ? ` · ${m.kind.toLowerCase()}` : ''}` : 'None mapped within about 500 ft'}</b></li>)}
+            <li className="q"><span>Nearest fire hydrant</span><b>{chc.hydrant ? `${chc.hydrant.feet < 1 ? 'On the lot' : `${Math.round(chc.hydrant.feet)} ft`}${chc.hydrant.id ? ` · ${chc.hydrant.id}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Distances run from the lot outline to Charlotte County Utilities lines. The county says the sewer type (gravity, low-pressure or vacuum) depends on where the lot is and cannot be chosen, and its map does not include projects under construction or design. A main nearby does not guarantee a connection is allowed or paid for. Confirm with Charlotte County Utilities. Source: Charlotte County GIS.</p>
+        </div>}
+        {psl && <div className="pb-util">
+          <b>{psl.city === 'Port St. Lucie' ? 'Port St. Lucie utilities' : 'St. Lucie County utilities'}</b>
+          <ul>
+            {psl.city && <li className="q"><span>City limits</span><b>Inside {psl.city}</b></li>}
+            <li className="q"><span>Utility serving this area</span><b>{psl.areas.length ? psl.areas.join(' · ') : 'No county utility area mapped'}</b></li>
+            <li className="q"><span>Nearest fire hydrant</span><b>{psl.hydrant ? `${psl.hydrant.feet < 1 ? 'On the lot' : `${Math.round(psl.hydrant.feet)} ft`}${psl.hydrant.id ? ` · ${psl.hydrant.id}` : ''}${psl.hydrant.owner ? ` · ${psl.hydrant.owner}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Neither the City of Port St. Lucie nor St. Lucie County publishes water or sewer pipe maps, so no mains are shown. This lists which utility the county maps as serving the area, plus the nearest hydrant. “Serving this area” is not proof that a line reaches the lot. Confirm water and sewer availability, and any connection or assessment charges, with Port St. Lucie Utility Systems (772-873-6400) or the serving utility. Source: St. Lucie County GIS.</p>
+        </div>}
         {lee?.city && <div className="pb-util">
           <b>{lee.city} utilities</b>
           <ul>

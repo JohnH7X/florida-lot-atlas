@@ -9,6 +9,10 @@ import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
 import { CB_BOUNDS, CB_LAYERS, CB_MIN_ZOOM, fetchCbLayer } from '../lib/cocoaBeach';
 import { BREVARD_UTIL_BOUNDS, BREVARD_UTIL_LAYERS, brevardUtilTiles } from '../lib/brevardUtilities';
 import { LEE_BOUNDS, LEE_LAYERS, leeTiles } from '../lib/leeCounty';
+import { NP_BOUNDS, NP_LAYERS, NP_MIN_ZOOM } from '../lib/northPort';
+import { CH_BOUNDS, CH_LAYERS, chTiles } from '../lib/charlotte';
+import { PSL_BOUNDS, PSL_LAYERS, pslTiles } from '../lib/portStLucie';
+import { fetchVectorLayer } from '../lib/utilGeo';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
@@ -39,6 +43,10 @@ interface Props {
   brevardUtil?: string[];
   /** Lee County Utilities and Cape Coral layers that are switched on (ids from LEE_LAYERS). */
   lee?: string[];
+  /** North Port, Charlotte County and Port St. Lucie utility layers that are switched on (ids from NP_LAYERS, CH_LAYERS, PSL_LAYERS). */
+  northPort?: string[];
+  charlotte?: string[];
+  stLucie?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
   cocoaBeach?: string[];
   selectedLot: LotFeature | null;
@@ -83,6 +91,7 @@ export default function MapView(props: Props) {
   const [satellite, setSatellite] = useState(() => { if (/(^|[#&?])map=satellite/.test(window.location.hash + window.location.search)) return true; try { return localStorage.getItem('atlas-basemap') === 'satellite'; } catch { return false; } });
   const refreshLotsRef = useRef<() => void>(() => {});
   const refreshCbRef = useRef<() => void>(() => {});
+  const refreshNpRef = useRef<() => void>(() => {});
   const pinMarkers = useRef<maplibregl.Marker[]>([]);
   const [saleColors, setSaleColors] = useState(() => { try { return localStorage.getItem('atlas-sale-colors') !== '0'; } catch { return true; } });
   const [saleCounts, setSaleCounts] = useState<{ s2026: number; s2025: number; sOlder: number; none: number } | null>(null);
@@ -197,6 +206,35 @@ export default function MapView(props: Props) {
           };
           refreshCbRef.current = refreshCb;
           instance.on('moveend', refreshCb);
+          // North Port's network layers are hosted feature layers, fetched as vectors for the map view while switched on.
+          for (const l of NP_LAYERS) {
+            instance.addSource(`npv-${l.id}`, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            if (l.kind === 'line') instance.addLayer({ id: `npv-${l.id}`, type: 'line', source: `npv-${l.id}`, paint: { 'line-color': l.color, 'line-width': ['interpolate', ['linear'], ['zoom'], 15, 1.2, 19, 3] } });
+            else instance.addLayer({ id: `npv-${l.id}`, type: 'circle', source: `npv-${l.id}`, paint: { 'circle-color': l.color, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 2.5, 19, 6], 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });
+          }
+          let npAbort: AbortController | null = null;
+          const refreshNp = () => {
+            if (!instance) return;
+            npAbort?.abort(); npAbort = new AbortController();
+            const signal = npAbort.signal, on = callbacks.current.northPort || [], b = instance.getBounds();
+            const view: [number, number, number, number] = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+            const near = instance.getZoom() >= NP_MIN_ZOOM && view[0] < NP_BOUNDS[2] && view[2] > NP_BOUNDS[0] && view[1] < NP_BOUNDS[3] && view[3] > NP_BOUNDS[1];
+            for (const l of NP_LAYERS) {
+              const src = instance.getSource(`npv-${l.id}`) as maplibregl.GeoJSONSource | undefined; if (!src) continue;
+              if (!on.includes(l.id) || !near) { src.setData({ type: 'FeatureCollection', features: [] }); continue; }
+              void fetchVectorLayer(l, view, signal).then(d => { if (!signal.aborted) src.setData(d as FeatureCollection); }).catch(() => undefined);
+            }
+          };
+          refreshNpRef.current = refreshNp;
+          instance.on('moveend', refreshNp);
+          for (const l of CH_LAYERS) {
+            instance.addSource(`ch-${l.id}`, { type: 'raster', tileSize: 512, bounds: CH_BOUNDS, tiles: [chTiles(l)], attribution: 'Charlotte County GIS (Utilities)' });
+            instance.addLayer({ id: `ch-${l.id}`, type: 'raster', source: `ch-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': l.id.endsWith('area') ? 0.45 : 0.95 } }, before);
+          }
+          for (const l of PSL_LAYERS) {
+            instance.addSource(`psl-${l.id}`, { type: 'raster', tileSize: 512, bounds: PSL_BOUNDS, tiles: [pslTiles(l)], attribution: 'St. Lucie County GIS (Utility Services)' });
+            instance.addLayer({ id: `psl-${l.id}`, type: 'raster', source: `psl-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': l.opacity } }, before);
+          }
           for (const l of LEE_LAYERS) {
             instance.addSource(`lee-${l.id}`, { type: 'raster', tileSize: 512, bounds: LEE_BOUNDS, tiles: [leeTiles(l)], attribution: l.source });
             instance.addLayer({ id: `lee-${l.id}`, type: 'raster', source: `lee-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': l.opacity } }, before);
@@ -477,6 +515,12 @@ export default function MapView(props: Props) {
     const m = map.current; if (!m || !ready) return;
     for (const l of LEE_LAYERS) if (m.getLayer(`lee-${l.id}`)) m.setLayoutProperty(`lee-${l.id}`, 'visibility', props.lee?.includes(l.id) ? 'visible' : 'none');
   }, [props.lee, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const l of CH_LAYERS) if (m.getLayer(`ch-${l.id}`)) m.setLayoutProperty(`ch-${l.id}`, 'visibility', props.charlotte?.includes(l.id) ? 'visible' : 'none');
+    for (const l of PSL_LAYERS) if (m.getLayer(`psl-${l.id}`)) m.setLayoutProperty(`psl-${l.id}`, 'visibility', props.stLucie?.includes(l.id) ? 'visible' : 'none');
+  }, [props.charlotte, props.stLucie, ready]);
+  useEffect(() => { if (ready) refreshNpRef.current(); }, [props.northPort, ready]);
   useEffect(() => { if (ready) refreshCbRef.current(); }, [props.cocoaBeach, ready]);
 
   useEffect(() => {
