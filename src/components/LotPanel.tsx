@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { titusvilleUtilitiesAt, type TitusvilleUtilities } from '../lib/titusville';
 import { cocoaUtilitiesAt, type CocoaUtilities } from '../lib/cocoa';
 import { palmBayUtilitiesAt, type PalmBayUtilities } from '../lib/palmBayUtilities';
 import { countySales, SALES_COUNTIES, type Sale, FT_PER_M, infrastructureAt, type Infra, lotArea, lotCenter, lotEdges, SQFT_PER_M2, streetViewUrl, unitsInLot, type LotFeature, type Unit } from '../lib/lots';
@@ -47,6 +48,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   useEffect(() => {
     let active = true; setCocoa('loading');
     void cocoaUtilitiesAt(lot).then(r => { if (active) setCocoa(r); }).catch(() => { if (active) setCocoa(null); });
+    return () => { active = false; };
+  }, [lot]);
+  const [tv, setTv] = useState<TitusvilleUtilities | null | 'loading'>(null);
+  useEffect(() => {
+    let active = true; setTv('loading');
+    void titusvilleUtilitiesAt(lot).then(r => { if (active) setTv(r); }).catch(() => { if (active) setTv(null); });
     return () => { active = false; };
   }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
@@ -209,6 +216,17 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {tv && tv !== 'loading' && <div className="pb-util">
+          <b>City of Titusville utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>{tv.inCity ? 'Inside the City of Titusville' : 'Outside the City of Titusville'}</b></li>
+            {([['Water main', tv.waterMain], ['Sewer main', tv.sewerMain], ['Reclaimed water main', tv.reclaimMain]] as const).map(([label, m]) => <li key={label} className={m ? (m.feet <= 30 ? 'ok' : 'q') : 'q'}><span>{label}</span><b>{m ? `${m.feet < 1 ? 'Touches the lot' : `${Math.round(m.feet)} ft from the lot`} · ${[m.diameter ? `${m.diameter} in` : '', m.material, m.kind].filter(Boolean).join(' ')}` : 'None mapped within about 500 ft'}</b></li>)}
+            <li className="q"><span>Water service line</span><b>{tv.waterLateral ? `Recorded on or touching the lot${tv.waterLateral.material ? ` (${tv.waterLateral.material})` : ''}` : 'None recorded on the lot'}</b></li>
+            <li className="q"><span>Sewer lateral</span><b>{tv.sewerLateral ? `Recorded on or touching the lot${tv.sewerLateral.material ? ` (${tv.sewerLateral.material})` : ''}` : 'None recorded on the lot'}</b></li>
+            <li className="q"><span>Nearest fire hydrant</span><b>{tv.hydrant ? `${tv.hydrant.feet < 1 ? 'On the lot' : `${Math.round(tv.hydrant.feet)} ft`} · ${tv.hydrant.id}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Distances run from the lot outline to the lines the City of Titusville has mapped. A main nearby does not guarantee a connection is allowed or paid for. Confirm with Titusville Utilities. Source: City of Titusville GIS (gis.titusville.com).</p>
+        </div>}
         {cocoa && cocoa !== 'loading' && <div className="pb-util">
           <b>City of Cocoa utilities</b>
           <ul>
