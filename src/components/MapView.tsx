@@ -8,6 +8,7 @@ import { FT_PER_M, LOT_MIN_ZOOM, bandOfSale, lotEdges, lotsInBounds, saleBandOf,
 import { MY_PIN_STATUS, type MyPin } from '../lib/myPins';
 import { CB_BOUNDS, CB_LAYERS, CB_MIN_ZOOM, fetchCbLayer } from '../lib/cocoaBeach';
 import { BREVARD_UTIL_BOUNDS, BREVARD_UTIL_LAYERS, brevardUtilTiles } from '../lib/brevardUtilities';
+import { LEE_BOUNDS, LEE_LAYERS, leeTiles } from '../lib/leeCounty';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
@@ -36,6 +37,8 @@ interface Props {
   melbourne?: string[];
   /** Brevard County Utility Services layers that are switched on (ids from BREVARD_UTIL_LAYERS). */
   brevardUtil?: string[];
+  /** Lee County Utilities and Cape Coral layers that are switched on (ids from LEE_LAYERS). */
+  lee?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
   cocoaBeach?: string[];
   selectedLot: LotFeature | null;
@@ -194,6 +197,10 @@ export default function MapView(props: Props) {
           };
           refreshCbRef.current = refreshCb;
           instance.on('moveend', refreshCb);
+          for (const l of LEE_LAYERS) {
+            instance.addSource(`lee-${l.id}`, { type: 'raster', tileSize: 512, bounds: LEE_BOUNDS, tiles: [leeTiles(l)], attribution: l.source });
+            instance.addLayer({ id: `lee-${l.id}`, type: 'raster', source: `lee-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': l.opacity } }, before);
+          }
           for (const l of BREVARD_UTIL_LAYERS) {
             instance.addSource(`bu-${l.id}`, { type: 'raster', tileSize: 512, bounds: BREVARD_UTIL_BOUNDS, tiles: [brevardUtilTiles(l.layer)], attribution: 'Brevard County GIS (Utility Services service areas)' });
             instance.addLayer({ id: `bu-${l.id}`, type: 'raster', source: `bu-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.55 } }, before);
@@ -466,6 +473,10 @@ export default function MapView(props: Props) {
     const m = map.current; if (!m || !ready) return;
     for (const l of BREVARD_UTIL_LAYERS) if (m.getLayer(`bu-${l.id}`)) m.setLayoutProperty(`bu-${l.id}`, 'visibility', props.brevardUtil?.includes(l.id) ? 'visible' : 'none');
   }, [props.brevardUtil, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const l of LEE_LAYERS) if (m.getLayer(`lee-${l.id}`)) m.setLayoutProperty(`lee-${l.id}`, 'visibility', props.lee?.includes(l.id) ? 'visible' : 'none');
+  }, [props.lee, ready]);
   useEffect(() => { if (ready) refreshCbRef.current(); }, [props.cocoaBeach, ready]);
 
   useEffect(() => {

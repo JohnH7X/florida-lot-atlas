@@ -4,6 +4,7 @@ import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
 import { cocoaBeachUtilitiesAt, type CocoaBeachUtilities } from '../lib/cocoaBeach';
+import { leeUtilitiesAt, type LeeUtilities } from '../lib/leeCounty';
 import { brevardCityAt } from '../lib/brevardCities';
 import { inSatelliteBeach } from '../lib/satelliteBeach';
 import { brevardUtilitiesAt, type BrevardUtilities } from '../lib/brevardUtilities';
@@ -87,6 +88,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
   const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [lee, setLee] = useState<LeeUtilities | null>(null);
+  useEffect(() => {
+    let active = true; setLee(null);
+    void leeUtilitiesAt(lot).then(r => { if (active) setLee(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
   const [bcity, setBcity] = useState<string | null>(null);
   useEffect(() => {
     let active = true; setCb('loading'); setBcity(null);
@@ -254,6 +261,23 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {lee?.city && <div className="pb-util">
+          <b>{lee.city} utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>Inside the {lee.city}</b></li>
+          </ul>
+          <p className="detail-foot">{lee.city === 'City of Cape Coral' ? 'Cape Coral runs its own water, sewer and irrigation (reclaimed water) utility, and its utility maps are not public, so no pipe lines are shown here. Many Cape Coral lots carry utility assessments and connection charges that depend on the lot’s service area, so confirm availability and any amounts owed with Cape Coral Utilities before buying.' : 'This city may run its own water and sewer utility, or buy from Lee County Utilities. Confirm with the city before buying.'} Source: Lee County GIS (city limits).</p>
+        </div>}
+        {lee?.lcu && <div className="pb-util">
+          <b>Lee County Utilities</b>
+          <ul>
+            <li className="q"><span>Water service area</span><b>{lee.lcu.waterArea ? 'Inside the LCU water service area' : 'Outside the LCU water service area'}</b></li>
+            <li className="q"><span>Sewer service area</span><b>{lee.lcu.sewerArea ? 'Inside the LCU sewer service area' : 'Outside the LCU sewer service area'}</b></li>
+            {([['Water main', lee.lcu.waterMain], ['Sewer main', lee.lcu.sewerMain], ['Reclaimed water main', lee.lcu.reclaimMain]] as const).map(([label, m]) => <li key={label} className={m ? (m.feet <= 30 ? 'ok' : 'q') : 'q'}><span>{label}</span><b>{m ? `${m.feet < 1 ? 'Touches the lot' : `${Math.round(m.feet)} ft from the lot`}${[m.size ? ` · ${m.size} in` : '', m.material && m.material !== 'UNK' ? ` ${m.material}` : '', 'force' in m && m.force ? ' · force main' : ''].join('')}` : 'None mapped within about 500 ft'}</b></li>)}
+            <li className="q"><span>Nearest fire hydrant</span><b>{lee.lcu.hydrant ? `${lee.lcu.hydrant.feet < 1 ? 'On the lot' : `${Math.round(lee.lcu.hydrant.feet)} ft`}${lee.lcu.hydrant.id ? ` · ${lee.lcu.hydrant.id}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Distances run from the lot outline to Lee County Utilities lines. Cape Coral, Fort Myers and other cities and private systems run their own utilities, so LCU lines are mostly outside city limits. A main nearby does not guarantee a connection is allowed or paid for. Sewer laterals and lines shared with neighbours may be counted. Confirm with Lee County Utilities. Source: Lee County GIS.</p>
+        </div>}
         {cb && cb !== 'loading' && <div className="pb-util">
           <b>City of Cocoa Beach utilities</b>
           <ul>
