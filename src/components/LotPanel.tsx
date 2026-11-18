@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronDown, Copy, Eye, FileText, MapPin, X } from 'lucid
 import type { LotSnapshot } from '../lib/files';
 import { useDrag } from '../lib/useDrag';
 import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from '../lib/territory';
+import { rockledgeUtilitiesAt, type RockledgeUtilities } from '../lib/rockledge';
 import { melbourneUtilitiesAt, type MelbourneUtilities } from '../lib/melbourne';
 import { titusvilleUtilitiesAt, type TitusvilleUtilities } from '../lib/titusville';
 import { cocoaUtilitiesAt, type CocoaUtilities } from '../lib/cocoa';
@@ -61,6 +62,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   useEffect(() => {
     let active = true; setMb('loading');
     void melbourneUtilitiesAt(lot).then(r => { if (active) setMb(r); }).catch(() => { if (active) setMb(null); });
+    return () => { active = false; };
+  }, [lot]);
+  const [rl, setRl] = useState<RockledgeUtilities | null | 'loading'>(null);
+  useEffect(() => {
+    let active = true; setRl('loading');
+    void rockledgeUtilitiesAt(lot).then(r => { if (active) setRl(r); }).catch(() => { if (active) setRl(null); });
     return () => { active = false; };
   }, [lot]);
   const [history, setHistory] = useState<Sale[] | null | 'loading'>(null);
@@ -223,6 +230,16 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {rl && rl !== 'loading' && <div className="pb-util">
+          <b>City of Rockledge utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>{rl.inCity ? 'Inside the City of Rockledge' : 'Outside the City of Rockledge'}</b></li>
+            {rl.schedule && <li className="q"><span>Trash</span><b>{rl.schedule.trash || '—'}</b></li>}
+            {rl.schedule && <li className="q"><span>Recycling · yard</span><b>{[rl.schedule.recycle, rl.schedule.yard].map(v => v || '—').join(' · ')}</b></li>}
+            <li className="q"><span>Water and sewer lines</span><b>Not published by the city</b></li>
+          </ul>
+          <p className="detail-foot">Rockledge does not publish water, sewer or hydrant maps publicly. Many Rockledge parcels are on the City of Cocoa’s water customer list; when a parcel is, its Cocoa record appears in the Cocoa block. Confirm sewer and water with the City of Rockledge Public Works. Source: City of Rockledge GIS (city boundary, residential pickup schedule).</p>
+        </div>}
         {mb && mb !== 'loading' && <div className="pb-util">
           <b>City of Melbourne utilities</b>
           <ul>
