@@ -6,6 +6,8 @@ import { territoryAt, territoryLinks, type Territory, type TerritoryLinks } from
 import { cocoaBeachUtilitiesAt, type CocoaBeachUtilities } from '../lib/cocoaBeach';
 import { leeUtilitiesAt, type LeeUtilities } from '../lib/leeCounty';
 import { northPortUtilitiesAt, type NorthPortUtilities } from '../lib/northPort';
+import { flwmiAt, type Flwmi } from '../lib/flwmi';
+import { citrusUtilitiesAt, type CitrusUtilities } from '../lib/citrus';
 import { charlotteUtilitiesAt, type CharlotteUtilities } from '../lib/charlotte';
 import { portStLucieUtilitiesAt, type PortStLucieUtilities } from '../lib/portStLucie';
 import { brevardCityAt } from '../lib/brevardCities';
@@ -91,6 +93,14 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
   const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [fw, setFw] = useState<Flwmi | null>(null);
+  const [cit, setCit] = useState<CitrusUtilities | null>(null);
+  useEffect(() => {
+    let active = true; setFw(null); setCit(null);
+    void flwmiAt(lot).then(r => { if (active) setFw(r); }).catch(() => undefined);
+    void citrusUtilitiesAt(lot).then(r => { if (active) setCit(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
   const [np, setNp] = useState<NorthPortUtilities | null>(null);
   const [chc, setChc] = useState<CharlotteUtilities | null>(null);
   const [psl, setPsl] = useState<PortStLucieUtilities | null>(null);
@@ -274,6 +284,32 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           <li className="q"><span>Internet</span><b>{viewPoint && <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?lat=${viewPoint[1]}&lon=${viewPoint[0]}&zoom=17`} target="_blank" rel="noreferrer">FCC broadband map <ArrowUpRight size={10}/></a>}</b></li>
           <li className="q"><span>Gas · road · drainage · fees</span><b>Confirm with utilities and the county</b></li>
         </ul>}
+        {cit && <div className="pb-util">
+          <b>Citrus County utilities</b>
+          <ul>
+            {cit.water.map(a => <li key={`w${a.area}`} className="q"><span>Water</span><b>{a.utility}{a.area && a.area !== a.utility ? ` · ${a.area}` : ''}{a.contact ? ` · ${a.contact}` : ''}</b></li>)}
+            {!cit.water.length && <li className="q"><span>Water</span><b>Not in a mapped operational area</b></li>}
+            {cit.sewer.map(a => <li key={`s${a.area}`} className="q"><span>Sewer</span><b>{a.utility}{a.area && a.area !== a.utility ? ` · ${a.area}` : ''}{a.contact ? ` · ${a.contact}` : ''}</b></li>)}
+            {!cit.sewer.length && <li className="q"><span>Sewer</span><b>Not in a mapped operational area</b></li>}
+          </ul>
+          <p className="detail-foot">Operational areas show which utility is responsible for an area, not where pipes run or whether a line reaches the lot. Citrus County does not publish water or sewer pipe maps. Many Citrus Springs lots are on septic even inside a sewer operational area, so check the Health Department block as well and confirm with the utility. Source: Citrus County GIS.</p>
+        </div>}
+        {fw && <div className="pb-util">
+          <b>Sewer or septic · public water or well</b>
+          <ul>
+            {fw.own && fw.own.built && <>
+              <li className="q"><span>This parcel · wastewater</span><b>{fw.own.sewer}{fw.own.sewerSource ? ` · ${fw.own.sewerSource}` : ''}</b></li>
+              <li className="q"><span>This parcel · drinking water</span><b>{fw.own.water}{fw.own.waterSource && fw.own.waterSource !== fw.own.sewerSource ? ` · ${fw.own.waterSource}` : ''}</b></li>
+            </>}
+            {fw.own && !fw.own.built && <li className="q"><span>This parcel</span><b>Not built, so the state has no sewer or water record for it</b></li>}
+            {fw.nearby.built > 0 && <>
+              <li className="q"><span>Built parcels nearby ({fw.nearby.built})</span><b>{fw.nearby.sewer} on central sewer · {fw.nearby.septic} on septic</b></li>
+              <li className="q"><span>Nearby drinking water</span><b>{fw.nearby.publicWater} public · {fw.nearby.well} private well</b></li>
+            </>}
+            {fw.nearby.built === 0 && <li className="q"><span>Built parcels nearby</span><b>None within about 450 ft</b></li>}
+          </ul>
+          <p className="detail-foot">Estimates from the Florida Department of Health’s Water Management Inventory, built from utility, local-government and health-department records. “Known” comes from a record for that parcel; “likely” is inferred. Vacant lots carry no value, so the nearby count is the best guide to what a vacant lot would face, and it is not proof that service reaches it.{fw.city === 'PALM COAST' ? ' Palm Coast Utility serves water, wastewater and reclaimed water; the city publishes a reclaimed-water map (PDF) but no pipe maps, so confirm availability with Palm Coast Utility.' : ''}{fw.city === 'DELTONA' ? ' Deltona’s Maps page offers a Water Service Map as a PDF, but no water or sewer line maps are published. Much of Deltona is on septic, so confirm availability with the City of Deltona.' : ''}</p>
+        </div>}
         {np && <div className="pb-util">
           <b>North Port utilities</b>
           <ul>

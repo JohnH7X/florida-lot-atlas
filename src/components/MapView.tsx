@@ -13,6 +13,8 @@ import { NP_BOUNDS, NP_LAYERS, NP_MIN_ZOOM } from '../lib/northPort';
 import { CH_BOUNDS, CH_LAYERS, chTiles } from '../lib/charlotte';
 import { PSL_BOUNDS, PSL_LAYERS, pslTiles } from '../lib/portStLucie';
 import { fetchVectorLayer } from '../lib/utilGeo';
+import { CIT_BOUNDS, CIT_LAYERS, citTiles } from '../lib/citrus';
+import { FL_BOUNDS, FLWMI_LAYERS, flwmiTiles } from '../lib/flwmi';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
@@ -47,6 +49,9 @@ interface Props {
   northPort?: string[];
   charlotte?: string[];
   stLucie?: string[];
+  /** Citrus County utility areas and Florida Department of Health sewer/septic layers that are switched on. */
+  citrus?: string[];
+  flwmi?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
   cocoaBeach?: string[];
   selectedLot: LotFeature | null;
@@ -230,6 +235,14 @@ export default function MapView(props: Props) {
           for (const l of CH_LAYERS) {
             instance.addSource(`ch-${l.id}`, { type: 'raster', tileSize: 512, bounds: CH_BOUNDS, tiles: [chTiles(l)], attribution: 'Charlotte County GIS (Utilities)' });
             instance.addLayer({ id: `ch-${l.id}`, type: 'raster', source: `ch-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': l.id.endsWith('area') ? 0.45 : 0.95 } }, before);
+          }
+          for (const l of CIT_LAYERS) {
+            instance.addSource(`cit-${l.id}`, { type: 'raster', tileSize: 512, bounds: CIT_BOUNDS, tiles: [citTiles(l)], attribution: 'Citrus County GIS (utility operational areas)' });
+            instance.addLayer({ id: `cit-${l.id}`, type: 'raster', source: `cit-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.45 } }, before);
+          }
+          for (const l of FLWMI_LAYERS) {
+            instance.addSource(`fw-${l.id}`, { type: 'raster', tileSize: 512, bounds: FL_BOUNDS, minzoom: 12, tiles: [flwmiTiles(l)], attribution: 'Florida Department of Health (Water Management Inventory)' });
+            instance.addLayer({ id: `fw-${l.id}`, type: 'raster', source: `fw-${l.id}`, minzoom: 12, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.6 } }, before);
           }
           for (const l of PSL_LAYERS) {
             instance.addSource(`psl-${l.id}`, { type: 'raster', tileSize: 512, bounds: PSL_BOUNDS, tiles: [pslTiles(l)], attribution: 'St. Lucie County GIS (Utility Services)' });
@@ -519,7 +532,9 @@ export default function MapView(props: Props) {
     const m = map.current; if (!m || !ready) return;
     for (const l of CH_LAYERS) if (m.getLayer(`ch-${l.id}`)) m.setLayoutProperty(`ch-${l.id}`, 'visibility', props.charlotte?.includes(l.id) ? 'visible' : 'none');
     for (const l of PSL_LAYERS) if (m.getLayer(`psl-${l.id}`)) m.setLayoutProperty(`psl-${l.id}`, 'visibility', props.stLucie?.includes(l.id) ? 'visible' : 'none');
-  }, [props.charlotte, props.stLucie, ready]);
+    for (const l of CIT_LAYERS) if (m.getLayer(`cit-${l.id}`)) m.setLayoutProperty(`cit-${l.id}`, 'visibility', props.citrus?.includes(l.id) ? 'visible' : 'none');
+    for (const l of FLWMI_LAYERS) if (m.getLayer(`fw-${l.id}`)) m.setLayoutProperty(`fw-${l.id}`, 'visibility', props.flwmi?.includes(l.id) ? 'visible' : 'none');
+  }, [props.charlotte, props.stLucie, props.citrus, props.flwmi, ready]);
   useEffect(() => { if (ready) refreshNpRef.current(); }, [props.northPort, ready]);
   useEffect(() => { if (ready) refreshCbRef.current(); }, [props.cocoaBeach, ready]);
 

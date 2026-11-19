@@ -316,3 +316,6 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .pb-hookup small{display:block;font-size:9.5px;color:#7a866f;margin-top:5px}
 
 .pb-dot{display:inline-block;width:9px;height:9px;border-radius:50%}
+
+.fw-legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10px;color:#4f5e4a;margin:4px 0 2px 2px}
+.fw-legend span{display:inline-flex;align-items:center;gap:4px}

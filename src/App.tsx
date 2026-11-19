@@ -16,6 +16,8 @@ import { LEE_LAYERS } from './lib/leeCounty';
 import { NP_LAYERS } from './lib/northPort';
 import { CH_LAYERS } from './lib/charlotte';
 import { PSL_LAYERS } from './lib/portStLucie';
+import { CIT_LAYERS } from './lib/citrus';
+import { FLWMI_LAYERS, FLWMI_LEGEND } from './lib/flwmi';
 import MyPinsPanel from './components/MyPinsPanel';
 import { useMyPins } from './lib/myPins';
 import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
@@ -60,6 +62,12 @@ export default function App() {
   const [pslOn, setPslOn] = useState(() => { try { return localStorage.getItem('atlas-stlucie') === '1'; } catch { return false; } });
   const [pslLayers, setPslLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-stlucie-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return PSL_LAYERS.filter(l => l.on).map(l => l.id); });
   useEffect(() => { try { localStorage.setItem('atlas-stlucie', pslOn ? '1' : '0'); localStorage.setItem('atlas-stlucie-layers', JSON.stringify(pslLayers)); } catch { /* ignore */ } }, [pslOn, pslLayers]);
+  const [citOn, setCitOn] = useState(() => { try { return localStorage.getItem('atlas-citrus') === '1'; } catch { return false; } });
+  const [citLayers, setCitLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-citrus-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return CIT_LAYERS.filter(l => l.on).map(l => l.id); });
+  useEffect(() => { try { localStorage.setItem('atlas-citrus', citOn ? '1' : '0'); localStorage.setItem('atlas-citrus-layers', JSON.stringify(citLayers)); } catch { /* ignore */ } }, [citOn, citLayers]);
+  const [fwOn, setFwOn] = useState(() => { try { return localStorage.getItem('atlas-flwmi') === '1'; } catch { return false; } });
+  const [fwLayers, setFwLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-flwmi-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return FLWMI_LAYERS.filter(l => l.on).map(l => l.id); });
+  useEffect(() => { try { localStorage.setItem('atlas-flwmi', fwOn ? '1' : '0'); localStorage.setItem('atlas-flwmi-layers', JSON.stringify(fwLayers)); } catch { /* ignore */ } }, [fwOn, fwLayers]);
   useEffect(() => { try { localStorage.setItem('atlas-cocoabeach', cbOn ? '1' : '0'); localStorage.setItem('atlas-cocoabeach-layers', JSON.stringify(cbLayers)); } catch { /* ignore */ } }, [cbOn, cbLayers]);
   const [buOn, setBuOn] = useState(() => { try { return localStorage.getItem('atlas-brevardutil') === '1'; } catch { return false; } });
   const [buLayers, setBuLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-brevardutil-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return BREVARD_UTIL_LAYERS.filter(l => l.on).map(l => l.id); });
@@ -298,7 +306,7 @@ export default function App() {
       <nav className="header-actions"><button className="quiet-button" onClick={() => { setReportLot(null); setReportsOpen(true); }}><FolderOpen size={16}/> Property files</button><button className="quiet-button about-button" onClick={() => setAbout(true)}><Info size={16}/> About the data</button><button className="share-button" onClick={share}>{shareMessage === 'Link copied' ? <Check size={16}/> : <Copy size={16}/>}<span>{shareMessage || 'Share view'}</span></button></nav>
     </header>
     <main className="workspace">
-      {metadata && <MapView northPort={npOn ? npLayers : []} charlotte={chOn ? chLayers : []} stLucie={pslOn ? pslLayers : []} lee={leeOn ? leeLayers : []} cocoaBeach={cbOn ? cbLayers : []} brevardUtil={buOn ? buLayers : []} melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
+      {metadata && <MapView citrus={citOn ? citLayers : []} flwmi={fwOn ? fwLayers : []} northPort={npOn ? npLayers : []} charlotte={chOn ? chLayers : []} stLucie={pslOn ? pslLayers : []} lee={leeOn ? leeLayers : []} cocoaBeach={cbOn ? cbLayers : []} brevardUtil={buOn ? buLayers : []} melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
         lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
@@ -372,6 +380,17 @@ export default function App() {
             {cbOn && <div className="pb-layers">
               {CB_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={cbLayers.includes(l.id)} onChange={e => setCbLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> <i className="pb-dot" style={{ background: l.color }}/>{l.label}</label>)}
               <small>City of Cocoa Beach GIS. Zoom in to see the lines.</small>
+            </div>}
+            <div className="toggle-row"><span>Sewer or septic (FL Dept of Health)</span><button className={`toggle ${fwOn ? 'on' : ''}`} role="switch" aria-checked={fwOn} aria-label="Show sewer or septic and public water or well by parcel" onClick={() => setFwOn(v => !v)}><span/></button></div>
+            {fwOn && <div className="pb-layers">
+              {FLWMI_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={fwLayers.includes(l.id)} onChange={e => setFwLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> {l.label}</label>)}
+              {fwLayers.map(id => <div key={id} className="fw-legend">{FLWMI_LEGEND[id].map(s => <span key={s.label}><i className="pb-dot" style={{ background: s.color }}/>{s.label}</span>)}</div>)}
+              <small>Florida Department of Health estimates for built parcels, statewide. Vacant lots are left clear. Zoom in to see parcels.</small>
+            </div>}
+            <div className="toggle-row"><span>Citrus County utility areas</span><button className={`toggle ${citOn ? 'on' : ''}`} role="switch" aria-checked={citOn} aria-label="Show Citrus County water and sewer operational areas" onClick={() => setCitOn(v => !v)}><span/></button></div>
+            {citOn && <div className="pb-layers">
+              {CIT_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={citLayers.includes(l.id)} onChange={e => setCitLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> <i className="pb-dot" style={{ background: l.color }}/>{l.label}</label>)}
+              <small>Citrus County GIS. Shows which utility serves each area, not where pipes run (the county does not publish pipe maps).</small>
             </div>}
             <div className="toggle-row"><span>North Port utilities</span><button className={`toggle ${npOn ? 'on' : ''}`} role="switch" aria-checked={npOn} aria-label="Show North Port utility lines" onClick={() => setNpOn(v => !v)}><span/></button></div>
             {npOn && <div className="pb-layers">
