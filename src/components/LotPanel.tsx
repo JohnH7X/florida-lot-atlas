@@ -342,12 +342,21 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
           </ul>
           <p className="detail-foot">Neither the City of Port St. Lucie nor St. Lucie County publishes water or sewer pipe maps, so no mains are shown. This lists which utility the county maps as serving the area, plus the nearest hydrant. “Serving this area” is not proof that a line reaches the lot. Confirm water and sewer availability, and any connection or assessment charges, with Port St. Lucie Utility Systems (772-873-6400) or the serving utility. Source: St. Lucie County GIS.</p>
         </div>}
+        {lee && (lee.franchise.water || lee.franchise.sewer) && <div className="pb-util">
+          <b>Water and sewer provider (Lee County)</b>
+          <ul>
+            {lee.franchise.lamsid && <li className="q"><span>Lehigh Acres</span><b>Inside the Lehigh Acres Municipal Services Improvement District</b></li>}
+            <li className="q"><span>Water franchise</span><b>{lee.franchise.water ? `${lee.franchise.water.name}${lee.franchise.water.phone ? ` · ${lee.franchise.water.phone}` : ''}` : 'None mapped'}</b></li>
+            <li className="q"><span>Wastewater franchise</span><b>{lee.franchise.sewer ? `${lee.franchise.sewer.name}${lee.franchise.sewer.phone ? ` · ${lee.franchise.sewer.phone}` : ''}` : 'None mapped'}</b></li>
+          </ul>
+          <p className="detail-foot">The utility holding the franchise for the area, from Lee County GIS. A franchise does not mean a pipe reaches the lot: much of Lehigh Acres has no sewer yet, and some lots have assessments or connection charges. Only Lee County Utilities lines are mapped in this atlas, so for other providers call the number above to confirm service, availability and any amounts owed.</p>
+        </div>}
         {lee?.city && <div className="pb-util">
           <b>{lee.city} utilities</b>
           <ul>
             <li className="q"><span>City limits</span><b>Inside the {lee.city}</b></li>
           </ul>
-          <p className="detail-foot">{lee.city === 'City of Cape Coral' ? 'Cape Coral runs its own water, sewer and irrigation (reclaimed water) utility, and its utility maps are not public, so no pipe lines are shown here. Many Cape Coral lots carry utility assessments and connection charges that depend on the lot’s service area, so confirm availability and any amounts owed with Cape Coral Utilities before buying.' : 'This city may run its own water and sewer utility, or buy from Lee County Utilities. Confirm with the city before buying.'} Source: Lee County GIS (city limits).</p>
+          <p className="detail-foot">{lee.city === 'City of Cape Coral' ? 'Cape Coral runs its own water, sewer and irrigation (reclaimed water) utility, and its utility maps are not public, so no pipe lines are shown here. Many Cape Coral lots carry utility assessments and connection charges that depend on the lot’s service area, and the city’s Utilities Extension Project (North 1, 3, 5 and 6 areas, in construction, design or study) will assess more. Use the city’s “Find Your Future Utilities Extension Area” tool, and confirm availability and any amounts owed with Cape Coral Utilities (the extension project line is 833-227-3837) before buying.' : 'This city may run its own water and sewer utility, or buy from Lee County Utilities. Confirm with the city before buying.'} Source: Lee County GIS (city limits).</p>
         </div>}
         {lee?.lcu && <div className="pb-util">
           <b>Lee County Utilities</b>

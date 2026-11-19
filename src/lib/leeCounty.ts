@@ -15,6 +15,11 @@ export const LEE_LAYERS: LeeLayer[] = [
   { id: 'lcu-reclaim', label: 'LCU reclaimed water mains', base: `${GIS}/UtilitiesLayers/ReclaimFacilities/MapServer`, layers: '6', color: '#8e44ad', on: false, source: 'Lee County GIS (Lee County Utilities)', opacity: 0.95 },
   { id: 'lcu-hydrants', label: 'LCU fire hydrants', base: `${GIS}/UtilitiesLayers/Water_Existing/MapServer`, layers: '1', color: '#d62828', on: false, source: 'Lee County GIS (Lee County Utilities)', opacity: 0.95 },
 ];
+export const LEE_FRANCHISE_LAYERS: LeeLayer[] = [
+  { id: 'fr-water', label: 'Water provider (franchise) areas', base: `${GIS}/Layers/Utilities/MapServer`, layers: '2', color: '#7fb3e6', on: false, source: 'Lee County GIS (water franchise areas)', opacity: 0.45 },
+  { id: 'fr-sewer', label: 'Sewer provider (franchise) areas', base: `${GIS}/Layers/Utilities/MapServer`, layers: '3', color: '#d9b38c', on: false, source: 'Lee County GIS (wastewater franchise areas)', opacity: 0.45 },
+];
+LEE_LAYERS.push(...LEE_FRANCHISE_LAYERS);
 export const leeTiles = (l: LeeLayer) =>
   `${l.base}/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=512,512&format=png32&transparent=true&layers=show:${l.layers}&f=image`;
 
@@ -22,6 +27,8 @@ export interface LeeLine { feet: number; size: number | null; material: string; 
 export interface LeeUtilities {
   /** The Lee County city the parcel is inside (e.g. "City of Cape Coral"), or null for unincorporated Lee County. */
   city: string | null;
+  /** Who holds the water and wastewater franchise at the parcel (Lee County Utilities, a city, FGUA, a private system…), and whether it is in the Lehigh Acres improvement district. */
+  franchise: { water: { name: string; phone: string } | null; sewer: { name: string; phone: string } | null; lamsid: boolean };
   lcu: {
     waterArea: boolean; sewerArea: boolean; waterMain: LeeLine | null; sewerMain: (LeeLine & { force: boolean }) | null;
     reclaimMain: LeeLine | null; hydrant: { feet: number; id: string } | null;
@@ -104,6 +111,8 @@ async function lcu(lot: LotFeature, c: Position): Promise<LeeUtilities['lcu']> {
 export async function leeUtilitiesAt(lot: LotFeature): Promise<LeeUtilities | null> {
   const c = lotCenter(lot); if (!c) return null;
   if (c[0] < LEE_BOUNDS[0] || c[0] > LEE_BOUNDS[2] || c[1] < LEE_BOUNDS[1] || c[1] > LEE_BOUNDS[3]) return null;
-  const [city, l] = await Promise.all([cityAt(c), lcu(lot, c).catch(() => null)]);
-  return city || l ? { city, lcu: l } : null;
+  const fr = async (layer: number) => { try { const a = (await query(`${GIS}/Layers/Utilities/MapServer/${layer}`, { x: c[0], y: c[1] }, 'esriGeometryPoint', 'FranchiseName,Phone'))[0]?.attributes; return a ? { name: text(a.FranchiseName), phone: text(a.Phone) } : null; } catch { return null; } };
+  const lamsid = async () => { try { return (await query(`${GIS}/Layers/Boundaries/MapServer/6`, { x: c[0], y: c[1] }, 'esriGeometryPoint', 'OBJECTID')).length > 0; } catch { return false; } };
+  const [city, l, water, sewer, lam] = await Promise.all([cityAt(c), lcu(lot, c).catch(() => null), fr(2), fr(3), lamsid()]);
+  return city || l || water || sewer ? { city, lcu: l, franchise: { water, sewer, lamsid: lam } } : null;
 }
