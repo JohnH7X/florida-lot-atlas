@@ -15,6 +15,7 @@ import { PSL_BOUNDS, PSL_LAYERS, pslTiles } from '../lib/portStLucie';
 import { fetchVectorLayer } from '../lib/utilGeo';
 import { CIT_BOUNDS, CIT_LAYERS, citTiles } from '../lib/citrus';
 import { FL_BOUNDS, FLWMI_LAYERS, flwmiTiles } from '../lib/flwmi';
+import { PC_BOUNDS, PC_LAYERS, pcTiles } from '../lib/palmCoast';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
@@ -52,6 +53,7 @@ interface Props {
   /** Citrus County utility areas and Florida Department of Health sewer/septic layers that are switched on. */
   citrus?: string[];
   flwmi?: string[];
+  palmCoast?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
   cocoaBeach?: string[];
   selectedLot: LotFeature | null;
@@ -239,6 +241,10 @@ export default function MapView(props: Props) {
           for (const l of CIT_LAYERS) {
             instance.addSource(`cit-${l.id}`, { type: 'raster', tileSize: 512, bounds: CIT_BOUNDS, tiles: [citTiles(l)], attribution: 'Citrus County GIS (utility operational areas)' });
             instance.addLayer({ id: `cit-${l.id}`, type: 'raster', source: `cit-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.45 } }, before);
+          }
+          for (const l of PC_LAYERS) {
+            instance.addSource(`pc-${l.id}`, { type: 'raster', tileSize: 512, bounds: PC_BOUNDS, tiles: [pcTiles()], attribution: 'City of Palm Coast GIS (hydrants)' });
+            instance.addLayer({ id: `pc-${l.id}`, type: 'raster', source: `pc-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.95 } }, before);
           }
           for (const l of FLWMI_LAYERS) {
             instance.addSource(`fw-${l.id}`, { type: 'raster', tileSize: 512, bounds: FL_BOUNDS, minzoom: 12, tiles: [flwmiTiles(l)], attribution: 'Florida Department of Health (Water Management Inventory)' });
@@ -534,7 +540,8 @@ export default function MapView(props: Props) {
     for (const l of PSL_LAYERS) if (m.getLayer(`psl-${l.id}`)) m.setLayoutProperty(`psl-${l.id}`, 'visibility', props.stLucie?.includes(l.id) ? 'visible' : 'none');
     for (const l of CIT_LAYERS) if (m.getLayer(`cit-${l.id}`)) m.setLayoutProperty(`cit-${l.id}`, 'visibility', props.citrus?.includes(l.id) ? 'visible' : 'none');
     for (const l of FLWMI_LAYERS) if (m.getLayer(`fw-${l.id}`)) m.setLayoutProperty(`fw-${l.id}`, 'visibility', props.flwmi?.includes(l.id) ? 'visible' : 'none');
-  }, [props.charlotte, props.stLucie, props.citrus, props.flwmi, ready]);
+    for (const l of PC_LAYERS) if (m.getLayer(`pc-${l.id}`)) m.setLayoutProperty(`pc-${l.id}`, 'visibility', props.palmCoast?.includes(l.id) ? 'visible' : 'none');
+  }, [props.charlotte, props.stLucie, props.citrus, props.flwmi, props.palmCoast, ready]);
   useEffect(() => { if (ready) refreshNpRef.current(); }, [props.northPort, ready]);
   useEffect(() => { if (ready) refreshCbRef.current(); }, [props.cocoaBeach, ready]);
 

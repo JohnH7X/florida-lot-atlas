@@ -7,6 +7,7 @@ import { cocoaBeachUtilitiesAt, type CocoaBeachUtilities } from '../lib/cocoaBea
 import { leeUtilitiesAt, type LeeUtilities } from '../lib/leeCounty';
 import { northPortUtilitiesAt, type NorthPortUtilities } from '../lib/northPort';
 import { flwmiAt, type Flwmi } from '../lib/flwmi';
+import { palmCoastUtilitiesAt, type PalmCoastUtilities } from '../lib/palmCoast';
 import { citrusUtilitiesAt, type CitrusUtilities } from '../lib/citrus';
 import { charlotteUtilitiesAt, type CharlotteUtilities } from '../lib/charlotte';
 import { portStLucieUtilitiesAt, type PortStLucieUtilities } from '../lib/portStLucie';
@@ -93,6 +94,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
   const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [pc, setPc] = useState<PalmCoastUtilities | null>(null);
+  useEffect(() => {
+    let active = true; setPc(null);
+    void palmCoastUtilitiesAt(lot).then(r => { if (active) setPc(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
   const [fw, setFw] = useState<Flwmi | null>(null);
   const [cit, setCit] = useState<CitrusUtilities | null>(null);
   useEffect(() => {
@@ -293,6 +300,14 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
             {!cit.sewer.length && <li className="q"><span>Sewer</span><b>Not in a mapped operational area</b></li>}
           </ul>
           <p className="detail-foot">Operational areas show which utility is responsible for an area, not where pipes run or whether a line reaches the lot. Citrus County does not publish water or sewer pipe maps. Many Citrus Springs lots are on septic even inside a sewer operational area, so check the Health Department block as well and confirm with the utility. Source: Citrus County GIS.</p>
+        </div>}
+        {pc && <div className="pb-util">
+          <b>City of Palm Coast utilities</b>
+          <ul>
+            <li className="q"><span>City limits</span><b>{pc.inCity ? 'Inside the City of Palm Coast' : 'Outside the City of Palm Coast'}</b></li>
+            <li className="q"><span>Nearest fire hydrant</span><b>{pc.hydrant ? `${pc.hydrant.feet < 1 ? 'On the lot' : `${Math.round(pc.hydrant.feet)} ft`}${pc.hydrant.id ? ` · ${pc.hydrant.id}` : ''}${pc.hydrant.owner ? ` · ${pc.hydrant.owner}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Palm Coast Utility serves water, wastewater and reclaimed water inside the city. The city’s water and sewer pipe maps are not public (its utility map services ask for a login), so no mains are shown; hydrants are the only public utility layer. A hydrant nearby is not proof of a sewer or reclaimed-water line, so confirm service and any connection charges with Palm Coast Utility (see the Health Department block for the sewer or septic status of neighbouring homes). Source: City of Palm Coast GIS.</p>
         </div>}
         {fw && <div className="pb-util">
           <b>Sewer or septic · public water or well</b>
