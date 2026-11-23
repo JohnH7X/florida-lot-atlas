@@ -20,7 +20,7 @@ import { CIT_LAYERS } from './lib/citrus';
 import { PC_LAYERS } from './lib/palmCoast';
 import { HN_LEGEND } from './lib/hernando';
 import { MN_LEGEND } from './lib/marion';
-import { POLY_GROUPS, POLY_SETS } from './lib/polySets';
+import { ALL_SETS, POLY_GROUPS } from './lib/polySets';
 import { FLWMI_LAYERS, FLWMI_LEGEND } from './lib/flwmi';
 import MyPinsPanel from './components/MyPinsPanel';
 import { useMyPins } from './lib/myPins';
@@ -80,9 +80,9 @@ export default function App() {
   const [mnOn, setMnOn] = useState(() => { try { return localStorage.getItem('atlas-marion') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('atlas-marion', mnOn ? '1' : '0'); } catch { /* ignore */ } }, [mnOn]);
   const [polyGroups, setPolyGroups] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-polygroups'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return []; });
-  const [polyIds, setPolyIds] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-polyids'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return POLY_SETS.map(s => s.id); });
+  const [polyIds, setPolyIds] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-polyids'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return ALL_SETS.filter(s => !/^(sr-vr|po-ps|tb-th)$/.test(s.id)).map(s => s.id); });
   useEffect(() => { try { localStorage.setItem('atlas-polygroups', JSON.stringify(polyGroups)); localStorage.setItem('atlas-polyids', JSON.stringify(polyIds)); } catch { /* ignore */ } }, [polyGroups, polyIds]);
-  const polysOn = POLY_SETS.filter(s => polyGroups.includes(s.group) && polyIds.includes(s.id)).map(s => s.id);
+  const polysOn = ALL_SETS.filter(s => polyGroups.includes(s.group) && polyIds.includes(s.id)).map(s => s.id);
   useEffect(() => { try { localStorage.setItem('atlas-cocoabeach', cbOn ? '1' : '0'); localStorage.setItem('atlas-cocoabeach-layers', JSON.stringify(cbLayers)); } catch { /* ignore */ } }, [cbOn, cbLayers]);
   const [buOn, setBuOn] = useState(() => { try { return localStorage.getItem('atlas-brevardutil') === '1'; } catch { return false; } });
   const [buLayers, setBuLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-brevardutil-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return BREVARD_UTIL_LAYERS.filter(l => l.on).map(l => l.id); });
@@ -405,7 +405,7 @@ export default function App() {
             {POLY_GROUPS.map(g => <div key={g.id}>
               <div className="toggle-row"><span>{g.label}</span><button className={`toggle ${polyGroups.includes(g.id) ? 'on' : ''}`} role="switch" aria-checked={polyGroups.includes(g.id)} aria-label={`Show ${g.label}`} onClick={() => setPolyGroups(cur => cur.includes(g.id) ? cur.filter(x => x !== g.id) : [...cur, g.id])}><span/></button></div>
               {polyGroups.includes(g.id) && <div className="pb-layers">
-                {POLY_SETS.filter(s => s.group === g.id).map(s => <label key={s.id}><input type="checkbox" checked={polyIds.includes(s.id)} onChange={e => setPolyIds(cur => e.target.checked ? [...cur, s.id] : cur.filter(x => x !== s.id))}/> <i className="pb-dot" style={{ background: s.swatch }}/>{s.label}</label>)}
+                {ALL_SETS.filter(s => s.group === g.id).map(s => <label key={s.id}><input type="checkbox" checked={polyIds.includes(s.id)} onChange={e => setPolyIds(cur => e.target.checked ? [...cur, s.id] : cur.filter(x => x !== s.id))}/> <i className="pb-dot" style={{ background: s.swatch }}/>{s.label}</label>)}
                 <small>{g.note}</small>
               </div>}
             </div>)}

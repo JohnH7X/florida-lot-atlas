@@ -13,6 +13,9 @@ import { marionUtilitiesAt, type MarionUtilities } from '../lib/marion';
 import { collierUtilitiesAt, type CollierUtilities } from '../lib/collier';
 import { highlandsUtilitiesAt, type HighlandsUtilities } from '../lib/highlands';
 import { lakeUtilitiesAt, type LakeUtilities } from '../lib/lakeCounty';
+import { sarasotaUtilitiesAt, type SarasotaUtilities } from '../lib/sarasota';
+import { polkOsceolaUtilitiesAt, type PolkOsceolaUtilities } from '../lib/polkOsceola';
+import { tampaBayUtilitiesAt, type TampaBayUtilities } from '../lib/tampaBay';
 import { citrusUtilitiesAt, type CitrusUtilities } from '../lib/citrus';
 import { charlotteUtilitiesAt, type CharlotteUtilities } from '../lib/charlotte';
 import { portStLucieUtilitiesAt, type PortStLucieUtilities } from '../lib/portStLucie';
@@ -99,6 +102,16 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
   const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [sr, setSr] = useState<SarasotaUtilities | null>(null);
+  const [po, setPo] = useState<PolkOsceolaUtilities | null>(null);
+  const [tb, setTb] = useState<TampaBayUtilities | null>(null);
+  useEffect(() => {
+    let active = true; setSr(null); setPo(null); setTb(null);
+    void sarasotaUtilitiesAt(lot).then(r => { if (active) setSr(r); }).catch(() => undefined);
+    void polkOsceolaUtilitiesAt(lot).then(r => { if (active) setPo(r); }).catch(() => undefined);
+    void tampaBayUtilitiesAt(lot).then(r => { if (active) setTb(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
   const [co, setCo] = useState<CollierUtilities | null>(null);
   const [hi, setHi] = useState<HighlandsUtilities | null>(null);
   const [lk, setLk] = useState<LakeUtilities | null>(null);
@@ -323,6 +336,56 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
             {!cit.sewer.length && <li className="q"><span>Sewer</span><b>Not in a mapped operational area</b></li>}
           </ul>
           <p className="detail-foot">Operational areas show which utility is responsible for an area, not where pipes run or whether a line reaches the lot. Citrus County does not publish water or sewer pipe maps. Many Citrus Springs lots are on septic even inside a sewer operational area, so check the Health Department block as well and confirm with the utility. Source: Citrus County GIS.</p>
+        </div>}
+        {sr && <div className="pb-util">
+          <b>Sarasota County area utilities</b>
+          <ul>
+            {sr.franchise && <>
+              <li className="q"><span>Utility franchise</span><b>{sr.franchise.name}{sr.franchise.phone ? ` · ${sr.franchise.phone}` : ''}</b></li>
+              <li className="q"><span>Water · sewer · reclaimed provider</span><b>{[sr.franchise.water, sr.franchise.sanitary, sr.franchise.reuse].map(x => x || '—').join(' · ')}</b></li>
+            </>}
+            {sr.ewd && <li className="q"><span>Englewood Water District, this parcel</span><b>Water {sr.ewd.water || '—'} · sewer {sr.ewd.sewer || '—'}{sr.ewd.phase ? ` · vacuum sewer phase ${sr.ewd.phase}` : ''}</b></li>}
+            {([['Water main', sr.waterMain], ['Sewer main', sr.sewerMain]] as const).map(([label, m]) => <li key={label} className={m ? (m.feet <= 30 ? 'ok' : 'q') : 'q'}><span>{label}</span><b>{m ? `${m.feet < 1 ? 'Touches the lot' : `${Math.round(m.feet)} ft from the lot`}${m.size ? ` · ${m.size} in` : ''} · ${m.kind}` : 'None mapped within about 500 ft'}</b></li>)}
+            <li className="q"><span>Nearest fire hydrant</span><b>{sr.hydrant ? `${sr.hydrant.feet < 1 ? 'On the lot' : `${Math.round(sr.hydrant.feet)} ft`}${sr.hydrant.owner ? ` · ${sr.hydrant.owner}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Lines come from Sarasota County Utilities’ public network, the City of Venice and the City of Sarasota (sewer only). Englewood Water District, South Gate, Longboat Key and FGUA main lines are not public, so “none mapped” there does not mean no pipe. A main nearby does not guarantee a connection is allowed or paid for. Confirm with the utility. Sources: Sarasota County GIS, City of Venice GIS, City of Sarasota GIS, Englewood Water District.</p>
+        </div>}
+        {po && <div className="pb-util">
+          <b>Polk / Osceola utilities</b>
+          <ul>
+            {po.toho && <>
+              <li className="q"><span>Toho Water Authority</span><b>{po.toho.service || 'Operating area'}{po.toho.district ? ` · district ${po.toho.district}${po.toho.district === 'FGUA' ? ' (legacy Poinciana system)' : ''}` : ''}</b></li>
+              {po.toho.sewerPlant && <li className="q"><span>Toho sewer collection area</span><b>{po.toho.sewerPlant}</b></li>}
+              {po.toho.reclaimed && <li className="q"><span>Toho reclaimed water area</span><b>{po.toho.reclaimed}</b></li>}
+            </>}
+            {po.polk && <>
+              <li className="q"><span>Polk County Utilities water area</span><b>{po.polk.water || 'Not in a Polk water area'}</b></li>
+              <li className="q"><span>Polk County Utilities sewer area</span><b>{po.polk.sewer || 'Not in a Polk sewer area'}</b></li>
+            </>}
+            {po.davenport && <>
+              <li className="q"><span>Davenport sewer main</span><b>{po.davenport.sewer ? `${po.davenport.sewer.feet < 1 ? 'Touches the lot' : `${Math.round(po.davenport.sewer.feet)} ft from the lot`}${po.davenport.sewer.size ? ` · ${po.davenport.sewer.size} in` : ''} · ${po.davenport.sewer.kind}` : 'None mapped within about 500 ft'}</b></li>
+              {po.davenport.central && <li className="q"><span>Davenport</span><b>Inside a known central-sewer area</b></li>}
+              {po.davenport.septic && <li className="q"><span>Davenport</span><b>Parcel flagged known or suspected septic</b></li>}
+            </>}
+            {po.hydrant && <li className="q"><span>Nearest Toho hydrant</span><b>{po.hydrant.feet < 1 ? 'On the lot' : `${Math.round(po.hydrant.feet)} ft`}{po.hydrant.id ? ` · ${po.hydrant.id}` : ''}</b></li>}
+          </ul>
+          <p className="detail-foot">Neither Toho Water Authority nor Polk County Utilities publishes pipe maps (their network folders ask for a login), so no water or sewer mains are shown except in Davenport. Polk-side Poinciana and Haines City have no public provider layer, so a missing block is not proof of no service. Service areas do not guarantee a line reaches the lot. Confirm availability and any connection or assessment charges with the utility, and see the Health Department block for sewer or septic status. Sources: Toho Water Authority GIS, Polk County GIS, City of Davenport.</p>
+        </div>}
+        {tb && <div className="pb-util">
+          <b>{tb.pasco ? 'Pasco County utilities' : 'Hillsborough County / Tampa utilities'}</b>
+          <ul>
+            {tb.pasco && <>
+              <li className="q"><span>Water provider</span><b>{tb.pasco.water || 'Not in a mapped water service area'}{tb.pasco.phone ? ` · ${tb.pasco.phone}` : ''}</b></li>
+              <li className="q"><span>Nearest fire hydrant</span><b>{tb.pasco.hydrant ? `${tb.pasco.hydrant.feet < 1 ? 'On the lot' : `${Math.round(tb.pasco.hydrant.feet)} ft`}${tb.pasco.hydrant.id ? ` · ${tb.pasco.hydrant.id}` : ''}` : 'None within about 500 ft'}</b></li>
+            </>}
+            {tb.hillsborough && <>
+              <li className="q"><span>Water service area</span><b>{tb.hillsborough.tampaWater || 'Not mapped'}{tb.hillsborough.countyWater ? ` · ${tb.hillsborough.countyWater}` : ''}</b></li>
+              <li className="q"><span>Sewer service area</span><b>{tb.hillsborough.tampaSewer || 'Not mapped'}</b></li>
+              <li className="q"><span>City of Tampa sewer main</span><b>{tb.hillsborough.sewerMain ? `${tb.hillsborough.sewerMain.feet < 1 ? 'Touches the lot' : `${Math.round(tb.hillsborough.sewerMain.feet)} ft from the lot`}${tb.hillsborough.sewerMain.size ? ` · ${tb.hillsborough.sewerMain.size} in` : ''}${tb.hillsborough.sewerMain.material ? ` ${tb.hillsborough.sewerMain.material}` : ''} · ${tb.hillsborough.sewerMain.kind}` : 'None mapped within about 500 ft'}</b></li>
+              <li className="q"><span>Nearest fire hydrant</span><b>{tb.hillsborough.hydrant ? `${tb.hillsborough.hydrant.feet < 1 ? 'On the lot' : `${Math.round(tb.hillsborough.hydrant.feet)} ft`}${tb.hillsborough.hydrant.owner ? ` · ${tb.hillsborough.hydrant.owner}` : ''}` : 'None within about 500 ft'}</b></li>
+            </>}
+          </ul>
+          <p className="detail-foot">Pasco publishes water service areas and hydrants but no sewer areas or pipe maps. Hillsborough County’s own pipe maps are not reachable, so sewer mains shown are the City of Tampa’s only; “none mapped” in county areas does not mean no pipe. Water service areas are not proof a line reaches the lot. Confirm availability and any charges with the utility, and see the Health Department block for sewer or septic status. Sources: Pasco County Utilities GIS, Hillsborough County GIS, City of Tampa GIS.</p>
         </div>}
         {co && <div className="pb-util">
           <b>Collier County utilities</b>
