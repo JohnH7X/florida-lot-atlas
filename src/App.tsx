@@ -18,6 +18,8 @@ import { CH_LAYERS } from './lib/charlotte';
 import { PSL_LAYERS } from './lib/portStLucie';
 import { CIT_LAYERS } from './lib/citrus';
 import { PC_LAYERS } from './lib/palmCoast';
+import { HN_LEGEND } from './lib/hernando';
+import { MN_LEGEND } from './lib/marion';
 import { FLWMI_LAYERS, FLWMI_LEGEND } from './lib/flwmi';
 import MyPinsPanel from './components/MyPinsPanel';
 import { useMyPins } from './lib/myPins';
@@ -72,6 +74,10 @@ export default function App() {
   const [pcOn, setPcOn] = useState(() => { try { return localStorage.getItem('atlas-palmcoast') === '1'; } catch { return false; } });
   const [pcLayers, setPcLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-palmcoast-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return PC_LAYERS.filter(l => l.on).map(l => l.id); });
   useEffect(() => { try { localStorage.setItem('atlas-palmcoast', pcOn ? '1' : '0'); localStorage.setItem('atlas-palmcoast-layers', JSON.stringify(pcLayers)); } catch { /* ignore */ } }, [pcOn, pcLayers]);
+  const [hnOn, setHnOn] = useState(() => { try { return localStorage.getItem('atlas-hernando') === '1'; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem('atlas-hernando', hnOn ? '1' : '0'); } catch { /* ignore */ } }, [hnOn]);
+  const [mnOn, setMnOn] = useState(() => { try { return localStorage.getItem('atlas-marion') === '1'; } catch { return false; } });
+  useEffect(() => { try { localStorage.setItem('atlas-marion', mnOn ? '1' : '0'); } catch { /* ignore */ } }, [mnOn]);
   useEffect(() => { try { localStorage.setItem('atlas-cocoabeach', cbOn ? '1' : '0'); localStorage.setItem('atlas-cocoabeach-layers', JSON.stringify(cbLayers)); } catch { /* ignore */ } }, [cbOn, cbLayers]);
   const [buOn, setBuOn] = useState(() => { try { return localStorage.getItem('atlas-brevardutil') === '1'; } catch { return false; } });
   const [buLayers, setBuLayers] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-brevardutil-layers'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return BREVARD_UTIL_LAYERS.filter(l => l.on).map(l => l.id); });
@@ -310,7 +316,7 @@ export default function App() {
       <nav className="header-actions"><button className="quiet-button" onClick={() => { setReportLot(null); setReportsOpen(true); }}><FolderOpen size={16}/> Property files</button><button className="quiet-button about-button" onClick={() => setAbout(true)}><Info size={16}/> About the data</button><button className="share-button" onClick={share}>{shareMessage === 'Link copied' ? <Check size={16}/> : <Copy size={16}/>}<span>{shareMessage || 'Share view'}</span></button></nav>
     </header>
     <main className="workspace">
-      {metadata && <MapView palmCoast={pcOn ? pcLayers : []} citrus={citOn ? citLayers : []} flwmi={fwOn ? fwLayers : []} northPort={npOn ? npLayers : []} charlotte={chOn ? chLayers : []} stLucie={pslOn ? pslLayers : []} lee={leeOn ? leeLayers : []} cocoaBeach={cbOn ? cbLayers : []} brevardUtil={buOn ? buLayers : []} melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
+      {metadata && <MapView hernando={hnOn ? ['areas'] : []} marion={mnOn ? ['areas'] : []} palmCoast={pcOn ? pcLayers : []} citrus={citOn ? citLayers : []} flwmi={fwOn ? fwLayers : []} northPort={npOn ? npLayers : []} charlotte={chOn ? chLayers : []} stLucie={pslOn ? pslLayers : []} lee={leeOn ? leeLayers : []} cocoaBeach={cbOn ? cbLayers : []} brevardUtil={buOn ? buLayers : []} melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
         lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
@@ -390,6 +396,16 @@ export default function App() {
               {FLWMI_LAYERS.map(l => <label key={l.id}><input type="checkbox" checked={fwLayers.includes(l.id)} onChange={e => setFwLayers(cur => e.target.checked ? [...cur, l.id] : cur.filter(x => x !== l.id))}/> {l.label}</label>)}
               {fwLayers.map(id => <div key={id} className="fw-legend">{FLWMI_LEGEND[id].map(s => <span key={s.label}><i className="pb-dot" style={{ background: s.color }}/>{s.label}</span>)}</div>)}
               <small>Florida Department of Health estimates for built parcels, statewide. Vacant lots are left clear. Zoom in to see parcels.</small>
+            </div>}
+            <div className="toggle-row"><span>Hernando County utility areas</span><button className={`toggle ${hnOn ? 'on' : ''}`} role="switch" aria-checked={hnOn} aria-label="Show Hernando County water and sewer service areas" onClick={() => setHnOn(v => !v)}><span/></button></div>
+            {hnOn && <div className="pb-layers">
+              <div className="fw-legend">{HN_LEGEND.map(s => <span key={s.label}><i className="pb-dot" style={{ background: s.color }}/>{s.label}</span>)}</div>
+              <small>Hernando County (Spring Hill, Brooksville). Shows service areas, not pipes: the county’s pipe maps are not available. Zoom in to see the areas.</small>
+            </div>}
+            <div className="toggle-row"><span>Marion County utility areas</span><button className={`toggle ${mnOn ? 'on' : ''}`} role="switch" aria-checked={mnOn} aria-label="Show Marion County water and sewer service areas" onClick={() => setMnOn(v => !v)}><span/></button></div>
+            {mnOn && <div className="pb-layers">
+              <div className="fw-legend">{MN_LEGEND.map(s => <span key={s.label}><i className="pb-dot" style={{ background: s.color }}/>{s.label}</span>)}</div>
+              <small>Marion County GIS (Ocala, Marion Oaks). Shows who serves each area and whether the county lists water and sewer there, not pipes. Zoom in to see the areas.</small>
             </div>}
             <div className="toggle-row"><span>Palm Coast hydrants</span><button className={`toggle ${pcOn ? 'on' : ''}`} role="switch" aria-checked={pcOn} aria-label="Show Palm Coast fire hydrants" onClick={() => setPcOn(v => !v)}><span/></button></div>
             {pcOn && <div className="pb-layers"><small>City of Palm Coast GIS. The city’s water and sewer pipe maps are not public, so only hydrants are shown. Zoom in to see them.</small></div>}

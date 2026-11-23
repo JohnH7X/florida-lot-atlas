@@ -8,6 +8,8 @@ import { leeUtilitiesAt, type LeeUtilities } from '../lib/leeCounty';
 import { northPortUtilitiesAt, type NorthPortUtilities } from '../lib/northPort';
 import { flwmiAt, type Flwmi } from '../lib/flwmi';
 import { palmCoastUtilitiesAt, type PalmCoastUtilities } from '../lib/palmCoast';
+import { hernandoUtilitiesAt, type HernandoUtilities } from '../lib/hernando';
+import { marionUtilitiesAt, type MarionUtilities } from '../lib/marion';
 import { citrusUtilitiesAt, type CitrusUtilities } from '../lib/citrus';
 import { charlotteUtilitiesAt, type CharlotteUtilities } from '../lib/charlotte';
 import { portStLucieUtilitiesAt, type PortStLucieUtilities } from '../lib/portStLucie';
@@ -94,6 +96,14 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
   const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [hn, setHn] = useState<HernandoUtilities | null>(null);
+  const [mn, setMn] = useState<MarionUtilities | null>(null);
+  useEffect(() => {
+    let active = true; setHn(null); setMn(null);
+    void hernandoUtilitiesAt(lot).then(r => { if (active) setHn(r); }).catch(() => undefined);
+    void marionUtilitiesAt(lot).then(r => { if (active) setMn(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
   const [pc, setPc] = useState<PalmCoastUtilities | null>(null);
   useEffect(() => {
     let active = true; setPc(null);
@@ -300,6 +310,22 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
             {!cit.sewer.length && <li className="q"><span>Sewer</span><b>Not in a mapped operational area</b></li>}
           </ul>
           <p className="detail-foot">Operational areas show which utility is responsible for an area, not where pipes run or whether a line reaches the lot. Citrus County does not publish water or sewer pipe maps. Many Citrus Springs lots are on septic even inside a sewer operational area, so check the Health Department block as well and confirm with the utility. Source: Citrus County GIS.</p>
+        </div>}
+        {hn && <div className="pb-util">
+          <b>Hernando County utilities</b>
+          <ul>
+            <li className="q"><span>County utility service area</span><b>{hn.service || 'Not in a county service area'}</b></li>
+            {hn.brooksville && <li className="q"><span>City of Brooksville</span><b>Inside the City of Brooksville’s first right to serve</b></li>}
+            {hn.electric && <li className="q"><span>Electric provider</span><b>{hn.electric}</b></li>}
+          </ul>
+          <p className="detail-foot">Service areas show where Hernando County Utilities (or the City of Brooksville) provides or plans service, not where pipes run. “Water service only” means no county sewer; those lots are usually on septic (see the Health Department block). The county’s pipe maps are not available to this atlas, so no mains or hydrants are shown. Confirm availability and any connection or assessment charges with the utility. Source: Hernando County Property Appraiser GIS.</p>
+        </div>}
+        {mn && <div className="pb-util">
+          <b>Marion County utilities</b>
+          <ul>
+            {mn.areas.map((a, i) => <li key={i} className="q"><span>Serving utility</span><b>{a.utility}{a.area ? ` · ${a.area}` : ''}{a.water || a.sewer ? ` · water ${a.water || 'not listed'}, sewer ${a.sewer || 'not listed'}` : ''}{a.electric ? ` · electric ${a.electric}` : ''}</b></li>)}
+          </ul>
+          <p className="detail-foot">From Marion County GIS’s utility service areas: the utility mapped for the area and whether the county lists water and sewer there. It does not show pipes or prove a line reaches the lot, and the county’s pipe maps are not available to this atlas. Many Marion Oaks lots are on septic even where sewer is listed (see the Health Department block), so confirm availability and any charges with the utility.</p>
         </div>}
         {pc && <div className="pb-util">
           <b>City of Palm Coast utilities</b>

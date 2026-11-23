@@ -76,3 +76,11 @@ export async function fetchVectorLayer(layer: VectorLayer, bbox: [number, number
   }));
   return { type: 'FeatureCollection', features: parts.flat() };
 }
+
+/** Service-area polygons from a hosted FeatureServer layer for the map view, each tagged with a `cat` property used to colour it. */
+export async function fetchPolygons(url: string, bbox: [number, number, number, number], signal: AbortSignal, categorize: (p: Record<string, unknown>) => string): Promise<FeatureCollection> {
+  const q = new URLSearchParams({ geometry: bbox.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', outSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+    outFields: '*', f: 'geojson', resultRecordCount: '1000', maxAllowableOffset: '0.00005' });
+  const j = await (await fetch(`${url}/query?${q}`, { signal })).json();
+  return { type: 'FeatureCollection', features: ((j.features || []) as Feature[]).map(f => ({ ...f, properties: { ...(f.properties || {}), cat: categorize((f.properties || {}) as Record<string, unknown>) } })) };
+}

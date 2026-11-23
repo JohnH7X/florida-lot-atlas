@@ -16,6 +16,9 @@ import { fetchVectorLayer } from '../lib/utilGeo';
 import { CIT_BOUNDS, CIT_LAYERS, citTiles } from '../lib/citrus';
 import { FL_BOUNDS, FLWMI_LAYERS, flwmiTiles } from '../lib/flwmi';
 import { PC_BOUNDS, PC_LAYERS, pcTiles } from '../lib/palmCoast';
+import { HN_AREAS, HN_BOUNDS, HN_COLORS, hnCategory } from '../lib/hernando';
+import { MN_BOUNDS, MN_COLORS, MN_URL, mnCategory } from '../lib/marion';
+import { fetchPolygons } from '../lib/utilGeo';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
@@ -54,6 +57,9 @@ interface Props {
   citrus?: string[];
   flwmi?: string[];
   palmCoast?: string[];
+  /** Hernando and Marion County utility-area polygons switched on (the id `areas`). */
+  hernando?: string[];
+  marion?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
   cocoaBeach?: string[];
   selectedLot: LotFeature | null;
@@ -101,6 +107,7 @@ export default function MapView(props: Props) {
   const refreshLotsRef = useRef<() => void>(() => {});
   const refreshCbRef = useRef<() => void>(() => {});
   const refreshNpRef = useRef<() => void>(() => {});
+  const refreshPolyRef = useRef<() => void>(() => {});
   const pinMarkers = useRef<maplibregl.Marker[]>([]);
   const [saleColors, setSaleColors] = useState(() => { try { return localStorage.getItem('atlas-sale-colors') !== '0'; } catch { return true; } });
   const [saleCounts, setSaleCounts] = useState<{ s2026: number; s2025: number; sOlder: number; none: number } | null>(null);
@@ -245,6 +252,31 @@ export default function MapView(props: Props) {
           };
           refreshNpRef.current = refreshNp;
           instance.on('moveend', refreshNp);
+          // Hernando and Marion County service-area polygons, fetched as vectors for the map view while switched on.
+          const polySets = [
+            { p: 'hn', url: HN_AREAS, bounds: HN_BOUNDS, colors: HN_COLORS, cat: hnCategory, on: () => callbacks.current.hernando },
+            { p: 'mn', url: MN_URL, bounds: MN_BOUNDS, colors: MN_COLORS, cat: mnCategory, on: () => callbacks.current.marion },
+          ];
+          let polyAbort: AbortController | null = null;
+          for (const s of polySets) {
+            instance.addSource(`${s.p}v`, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+            instance.addLayer({ id: `${s.p}v-fill`, type: 'fill', source: `${s.p}v`, paint: { 'fill-opacity': 0.4, 'fill-color': ['match', ['get', 'cat'], ...Object.entries(s.colors).flat(), '#9aa39a'] as unknown as ExpressionSpecification } }, before);
+            instance.addLayer({ id: `${s.p}v-line`, type: 'line', source: `${s.p}v`, paint: { 'line-color': '#4f5e4a', 'line-width': 0.8, 'line-opacity': 0.6 } }, before);
+          }
+          const refreshPoly = () => {
+            if (!instance) return;
+            polyAbort?.abort(); polyAbort = new AbortController();
+            const signal = polyAbort.signal, b = instance.getBounds();
+            const view: [number, number, number, number] = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+            for (const s of polySets) {
+              const src = instance.getSource(`${s.p}v`) as maplibregl.GeoJSONSource | undefined; if (!src) continue;
+              const near = instance.getZoom() >= 10 && view[0] < s.bounds[2] && view[2] > s.bounds[0] && view[1] < s.bounds[3] && view[3] > s.bounds[1];
+              if (!s.on()?.includes('areas') || !near) { src.setData({ type: 'FeatureCollection', features: [] }); continue; }
+              void fetchPolygons(s.url, view, signal, s.cat).then(d => { if (!signal.aborted) src.setData(d as FeatureCollection); }).catch(() => undefined);
+            }
+          };
+          refreshPolyRef.current = refreshPoly;
+          instance.on('moveend', refreshPoly);
           for (const l of CH_LAYERS) {
             instance.addSource(`ch-${l.id}`, { type: 'raster', tileSize: 512, bounds: CH_BOUNDS, tiles: [chTiles(l)], attribution: 'Charlotte County GIS (Utilities)' });
             instance.addLayer({ id: `ch-${l.id}`, type: 'raster', source: `ch-${l.id}`, layout: { visibility: 'none' }, paint: { 'raster-opacity': l.id.endsWith('area') ? 0.45 : 0.95 } }, before);
@@ -554,6 +586,7 @@ export default function MapView(props: Props) {
     for (const l of PC_LAYERS) if (m.getLayer(`pc-${l.id}`)) m.setLayoutProperty(`pc-${l.id}`, 'visibility', props.palmCoast?.includes(l.id) ? 'visible' : 'none');
   }, [props.charlotte, props.stLucie, props.citrus, props.flwmi, props.palmCoast, ready]);
   useEffect(() => { if (ready) refreshNpRef.current(); }, [props.northPort, ready]);
+  useEffect(() => { if (ready) refreshPolyRef.current(); }, [props.hernando, props.marion, ready]);
   useEffect(() => { if (ready) refreshCbRef.current(); }, [props.cocoaBeach, ready]);
 
   useEffect(() => {
