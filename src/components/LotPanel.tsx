@@ -14,6 +14,8 @@ import { collierUtilitiesAt, type CollierUtilities } from '../lib/collier';
 import { highlandsUtilitiesAt, type HighlandsUtilities } from '../lib/highlands';
 import { lakeUtilitiesAt, type LakeUtilities } from '../lib/lakeCounty';
 import { ruralUtilitiesAt, type RuralUtilities } from '../lib/ruralFl';
+import { manateeUtilitiesAt, type ManateeUtilities } from '../lib/manatee';
+import { volusiaMartinUtilitiesAt, VO_TYPE_LABEL, type VolusiaMartinUtilities } from '../lib/volusiaMartin';
 import { sarasotaUtilitiesAt, type SarasotaUtilities } from '../lib/sarasota';
 import { polkOsceolaUtilitiesAt, type PolkOsceolaUtilities } from '../lib/polkOsceola';
 import { tampaBayUtilitiesAt, type TampaBayUtilities } from '../lib/tampaBay';
@@ -51,6 +53,7 @@ interface Props {
 }
 
 /** Everything about one selected parcel, in a single card. */
+const fmtLine = (l: { feet: number; size: number | null; material: string }) => `${l.feet < 1 ? 'Touches the lot' : `${Math.round(l.feet)} ft`}${l.size ? ` · ${l.size} in` : ''}${l.material ? ` ${l.material}` : ''}`;
 export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDetails, zoneText, zoneGrid, onReport, onClose }: Props) {
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [copied, setCopied] = useState(false);
@@ -117,8 +120,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   const [hi, setHi] = useState<HighlandsUtilities | null>(null);
   const [lk, setLk] = useState<LakeUtilities | null>(null);
   const [rf, setRf] = useState<RuralUtilities | null>(null);
+  const [mte, setMte] = useState<ManateeUtilities | null>(null);
+  const [vm, setVm] = useState<VolusiaMartinUtilities | null>(null);
   useEffect(() => {
-    let active = true; setCo(null); setHi(null); setLk(null); setRf(null);
+    let active = true; setCo(null); setHi(null); setLk(null); setRf(null); setMte(null); setVm(null);
+    void manateeUtilitiesAt(lot).then(r => { if (active) setMte(r); }).catch(() => undefined);
+    void volusiaMartinUtilitiesAt(lot).then(r => { if (active) setVm(r); }).catch(() => undefined);
     void ruralUtilitiesAt(lot).then(r => { if (active) setRf(r); }).catch(() => undefined);
     void collierUtilitiesAt(lot).then(r => { if (active) setCo(r); }).catch(() => undefined);
     void highlandsUtilitiesAt(lot).then(r => { if (active) setHi(r); }).catch(() => undefined);
@@ -410,6 +417,35 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
             <li className="q"><span>Nearest fire hydrant</span><b>{hi.hydrant ? `${hi.hydrant.feet < 1 ? 'On the lot' : `${Math.round(hi.hydrant.feet)} ft`}${hi.hydrant.utility ? ` · ${hi.hydrant.utility}` : ''}` : 'None within about 500 ft'}</b></li>
           </ul>
           <p className="detail-foot">Highlands County publishes no water pipe or service-area maps, and the state’s water layer misplaces Sebring’s system, so the water-system row can be missing in Sebring (the hydrant’s utility name is a better hint there). Hydrant records are a compiled 2018-era layer. A service area does not mean a line reaches the lot. Confirm availability and charges with the utility; check the Health Department block for sewer or septic status. Sources: Highlands County GIS, EPA water system areas.</p>
+        </div>}
+        {mte && <div className="pb-util">
+          <b>Manatee County utilities</b>
+          <ul>
+            <li className="q"><span>Water main</span><b>{mte.waterMain ? fmtLine(mte.waterMain) : 'None mapped within about 500 ft'}</b></li>
+            <li className="q"><span>{mte.sewerMain?.force ? 'Sewer force main' : 'Sewer main'}</span><b>{mte.sewerMain ? fmtLine(mte.sewerMain) : 'None mapped within about 500 ft'}</b></li>
+            {mte.reclaimMain && <li className="q"><span>Reclaimed water main</span><b>{fmtLine(mte.reclaimMain)}</b></li>}
+            <li className="q"><span>Nearest fire hydrant</span><b>{mte.hydrant ? `${mte.hydrant.feet < 1 ? 'On the lot' : `${Math.round(mte.hydrant.feet)} ft`}` : 'None within about 500 ft'}</b></li>
+            {mte.sewerDistrict && <li className="q"><span>Sewer district</span><b>{mte.sewerDistrict}</b></li>}
+            {mte.bradentonWaterOnly && <li className="q"><span>City of Bradenton</span><b>Inside the city’s water-only service area</b></li>}
+            {mte.bradenRiver && <li className="q"><span>Braden River service area</span><b>Inside</b></li>}
+            {mte.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{mte.epa.name}</b></li>}
+          </ul>
+          <p className="detail-foot">Mains are the County’s own; city-owned and private systems (Bradenton, Palmetto, Longboat Key, private developments) are not all mapped, so “none mapped” does not mean no pipe. A main near the lot does not guarantee a connection; confirm availability and charges with Manatee County Utilities. See the Health Department block for sewer or septic status. Sources: Manatee County GIS, City of Bradenton, EPA water system areas.</p>
+        </div>}
+        {vm && <div className="pb-util">
+          <b>{vm.region === 'volusia' ? 'Volusia County utilities' : 'Martin County utilities'}</b>
+          <ul>
+            {vm.areas.map((a, i) => <li key={i} className="q"><span>Service area</span><b>{a.provider}{a.area && a.area !== a.provider ? ` · ${a.area}` : ''} · {VO_TYPE_LABEL[a.type]}</b></li>)}
+            {vm.region === 'volusia' && !vm.areas.length && <li className="q"><span>Service area</span><b>Not in a mapped water or sewer service area (wells and septic are common)</b></li>}
+            {vm.portOrange && <>
+              <li className="q"><span>Port Orange water main</span><b>{vm.portOrange.waterMain && vm.portOrange.waterMain.feet <= 500 ? fmtLine(vm.portOrange.waterMain) : 'None mapped within about 500 ft'}</b></li>
+              <li className="q"><span>Port Orange {vm.portOrange.sewerMain?.force ? 'sewer force main' : 'sewer main'}</span><b>{vm.portOrange.sewerMain && vm.portOrange.sewerMain.feet <= 500 ? fmtLine(vm.portOrange.sewerMain) : 'None mapped within about 500 ft'}</b></li>
+              <li className="q"><span>Port Orange hydrant</span><b>{vm.portOrange.hydrant ? `${vm.portOrange.hydrant.feet < 1 ? 'On the lot' : `${Math.round(vm.portOrange.hydrant.feet)} ft`}` : 'None within about 500 ft'}</b></li>
+            </>}
+            {vm.region === 'martin' && <li className="q"><span>City of Stuart utilities</span><b>{vm.stuart ? 'Inside the city’s utility boundary' : 'Outside the City of Stuart’s utility boundary'}</b></li>}
+            {vm.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{vm.epa.name}{vm.epa.population ? ` · serves about ${vm.epa.population.toLocaleString()}` : ''}</b></li>}
+          </ul>
+          <p className="detail-foot">{vm.region === 'volusia' ? 'Volusia County publishes service areas by provider (some from 2016 maps) and, apart from the City of Port Orange, no pipe maps, so a service area does not mean a line reaches the lot.' : 'Martin County Utilities’ maps are not available outside its network and the South Florida Water Management District’s layers block browser access, so only the City of Stuart’s boundary and the EPA water system are shown; “outside” does not mean no service.'} See the Health Department block for sewer or septic status, and confirm availability and charges with the utility. Sources: {vm.region === 'volusia' ? 'Volusia County GIS, City of Port Orange, EPA water system areas.' : 'City of Stuart, EPA water system areas.'}</p>
         </div>}
         {rf && <div className="pb-util">
           <b>{rf.region.label} utilities</b>

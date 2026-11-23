@@ -6,6 +6,8 @@ import { DAV_BOUNDS, DAV_FORCE, DAV_GRAV, PCU, PO_BOUNDS, TOHO } from './polkOsc
 import { HC_POTABLE, PASCO_WATER, TAMPA, TB_BOUNDS } from './tampaBay';
 import { EPA_URL } from './epaWater';
 import { HD_MSBU, HG_BOUNDS, IR_BOUNDS, IR_S2S, PU_BOUNDS, PU_MAINS, RURAL_BOUNDS, SJ_WATER, VB_STEP, VB_WATER } from './ruralFl';
+import { MAN_BOUNDS, MAN_BRADEN, MAN_BRADENTON, MAN_RECLAIM, MAN_SEWER, MAN_SEWER_DISTRICTS, MAN_WATER } from './manatee';
+import { MARTIN_BOUNDS, PO_FORCE, PO_GRAVITY, PO_WATER, PORT_ORANGE_BOUNDS, STUART_AREA, VO_AREAS, VO_BOUNDS, voType } from './volusiaMartin';
 import type { VectorLayer } from './utilGeo';
 
 /** Service-area polygon overlays drawn as vectors for the map view (one per layer id). `cat` picks the colour key for each feature. */
@@ -21,6 +23,9 @@ export const POLY_GROUPS: { id: string; label: string; note: string }[] = [
   { id: 'putnam', label: 'Putnam County water mains (Palatka)', note: 'Putnam County GIS water mains cover only the Palatka area. Elsewhere in the county (Interlachen, Florida Highlands) lots rely on wells and septic. Zoom in.' },
   { id: 'hendry', label: 'Hendry County assessment districts', note: 'Hendry County MSBU and special districts (lighting, drainage, roads). Hendry, Glades, Okeechobee, DeSoto, Levy and Sumter publish no utility maps. Zoom in.' },
   { id: 'ruralwater', label: 'Public water system areas (rural counties)', note: 'EPA community water system areas (Okeechobee, Hendry, Glades, DeSoto, Levy, Sumter) and St. Johns River WMD water supply areas (Putnam, Indian River). Approximate: partly modeled. Zoom in.' },
+  { id: 'manatee', label: 'Manatee County utilities (Bradenton, Parrish)', note: 'Manatee County Utilities water, sewer and reclaimed mains (zoom in), sewer districts and the Braden River service area.' },
+  { id: 'volusia', label: 'Volusia County utilities (Daytona, DeLand, Port Orange)', note: 'Volusia County GIS water and sewer service areas by provider, plus the City of Port Orange’s water and sewer mains. Other cities publish areas only. Zoom in.' },
+  { id: 'martin', label: 'Martin County utilities (Stuart)', note: 'Only the City of Stuart’s utility boundary is public. Martin County Utilities’ own maps are not available. Zoom in.' },
   { id: 'lake', label: 'Lake County water areas', note: 'Lake County GIS water service areas (cities and private utilities). No pipe maps or sewer areas are public. Zoom in.' },
 ];
 export const POLY_SETS: PolySet[] = [
@@ -42,6 +47,11 @@ export const POLY_SETS: PolySet[] = [
   { id: 'hd-msbu', group: 'hendry', label: 'MSBU and special districts', url: HD_MSBU, bounds: HG_BOUNDS, colors: { a: '#d62828' }, cat: one('a'), swatch: '#d62828' },
   { id: 'rw-sj', group: 'ruralwater', label: 'SJRWMD water supply areas (Putnam, Indian River)', url: SJ_WATER, bounds: [-82.0, 27.5, -80.3, 29.95], colors: { a: '#4aa3df' }, cat: one('a'), swatch: '#4aa3df' },
   { id: 'rw-epa', group: 'ruralwater', label: 'EPA water system areas', url: EPA_URL, bounds: RURAL_BOUNDS, colors: { a: '#00a884' }, cat: one('a'), swatch: '#00a884' },
+  { id: 'mt-sd', group: 'manatee', label: 'Sewer districts', url: MAN_SEWER_DISTRICTS, bounds: MAN_BOUNDS, colors: { North: '#734c00', East: '#c98a4b', Southwest: '#8e44ad', Southeast: '#d9b38c', City: '#9aa39a', 'Longboat Key': '#00a884' }, cat: p => String(p.DISTNAME || ''), swatch: '#734c00' },
+  { id: 'mt-br', group: 'manatee', label: 'Braden River service area', url: MAN_BRADEN, bounds: MAN_BOUNDS, colors: { a: '#0070ff' }, cat: one('a'), swatch: '#0070ff' },
+  { id: 'mt-bw', group: 'manatee', label: 'City of Bradenton water-only area', url: MAN_BRADENTON, bounds: MAN_BOUNDS, colors: { a: '#7fb3e6' }, cat: one('a'), swatch: '#7fb3e6' },
+  { id: 'vo-sa', group: 'volusia', label: 'Water / sewer service areas (by services)', url: VO_AREAS, bounds: VO_BOUNDS, colors: { both: '#00a884', water: '#4aa3df', sewer: '#c98a4b', other: '#9aa39a' }, cat: p => voType(p.SERV_TYPE), swatch: '#00a884' },
+  { id: 'mr-st', group: 'martin', label: 'City of Stuart utility boundary', url: STUART_AREA, bounds: MARTIN_BOUNDS, colors: { a: '#0070ff' }, cat: one('a'), swatch: '#0070ff' },
   { id: 'lk-ws', group: 'lake', label: 'Water service areas', url: LK_WS, bounds: LK_BOUNDS, colors: { a: '#0070ff' }, cat: one('a'), swatch: '#0070ff' },
 ];
 
@@ -49,6 +59,10 @@ export const POLY_SETS: PolySet[] = [
 export interface RasterSet { id: string; group: string; label: string; tiles: string; bounds: [number, number, number, number]; attribution: string; opacity: number; swatch: string }
 const exp = (base: string, layers: string) => `${base}/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=512,512&format=png32&transparent=true&layers=show:${layers}&f=image`;
 export const RASTER_SETS: RasterSet[] = [
+  { id: 'mt-w', group: 'manatee', label: 'County water mains', tiles: exp(MAN_WATER, '12'), bounds: MAN_BOUNDS, attribution: 'Manatee County Utilities', opacity: 0.95, swatch: '#1f6fd1' },
+  { id: 'mt-s', group: 'manatee', label: 'County sewer mains (gravity and force)', tiles: exp(MAN_SEWER, '11,12'), bounds: MAN_BOUNDS, attribution: 'Manatee County Utilities', opacity: 0.95, swatch: '#b5651d' },
+  { id: 'mt-r', group: 'manatee', label: 'County reclaimed water mains', tiles: exp(MAN_RECLAIM, '10'), bounds: MAN_BOUNDS, attribution: 'Manatee County Utilities', opacity: 0.95, swatch: '#8e44ad' },
+  { id: 'mt-h', group: 'manatee', label: 'County fire hydrants', tiles: exp(MAN_WATER, '1'), bounds: MAN_BOUNDS, attribution: 'Manatee County Utilities', opacity: 0.95, swatch: '#d62828' },
   { id: 'sr-vw', group: 'sarasota', label: 'Venice water mains', tiles: exp(`${VENICE}/PotableWater/MapServer`, '6'), bounds: SR_BOUNDS, attribution: 'City of Venice GIS', opacity: 0.95, swatch: '#1f6fd1' },
   { id: 'sr-vs', group: 'sarasota', label: 'Venice sewer mains', tiles: exp(`${VENICE}/Sanitary_Sewer/MapServer`, '10,12'), bounds: SR_BOUNDS, attribution: 'City of Venice GIS', opacity: 0.95, swatch: '#b5651d' },
   { id: 'sr-vr', group: 'sarasota', label: 'Venice reclaimed mains', tiles: exp(`${VENICE}/Reclaimed_Water/MapServer`, '9'), bounds: SR_BOUNDS, attribution: 'City of Venice GIS', opacity: 0.95, swatch: '#8e44ad' },
@@ -66,6 +80,8 @@ export const VECTOR_SETS: VectorSet[] = [
   { id: 'po-dav', group: 'polkosceola', label: 'Davenport sewer mains', layer: { id: 'po-dav', label: '', urls: [DAV_GRAV, DAV_FORCE], kind: 'line', color: '#b5651d', on: true }, bounds: DAV_BOUNDS, minZoom: 14, swatch: '#b5651d' },
 ];
 VECTOR_SETS.push(
+  { id: 'vo-pow', group: 'volusia', label: 'Port Orange water mains', layer: { id: 'vo-pow', label: '', urls: [PO_WATER], kind: 'line', color: '#1f6fd1', on: true }, bounds: PORT_ORANGE_BOUNDS, minZoom: 14, swatch: '#1f6fd1' },
+  { id: 'vo-pos', group: 'volusia', label: 'Port Orange sewer mains', layer: { id: 'vo-pos', label: '', urls: [PO_GRAVITY, PO_FORCE], kind: 'line', color: '#b5651d', on: true }, bounds: PORT_ORANGE_BOUNDS, minZoom: 14, swatch: '#b5651d' },
   { id: 'ir-step', group: 'indianriver', label: 'Vero Beach STEP sewer mains', layer: { id: 'ir-step', label: '', urls: [VB_STEP], kind: 'line', color: '#b5651d', on: true }, bounds: IR_BOUNDS, minZoom: 14, swatch: '#b5651d' },
   { id: 'pu-wm', group: 'putnam', label: 'Palatka-area water mains', layer: { id: 'pu-wm', label: '', urls: [PU_MAINS], kind: 'line', color: '#1f6fd1', on: true }, bounds: PU_BOUNDS, minZoom: 14, swatch: '#1f6fd1' },
 );

@@ -80,7 +80,7 @@ export default function App() {
   const [mnOn, setMnOn] = useState(() => { try { return localStorage.getItem('atlas-marion') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('atlas-marion', mnOn ? '1' : '0'); } catch { /* ignore */ } }, [mnOn]);
   const [polyGroups, setPolyGroups] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-polygroups'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return []; });
-  const [polyIds, setPolyIds] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-polyids'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return ALL_SETS.filter(s => !/^(sr-vr|po-ps|tb-th)$/.test(s.id)).map(s => s.id); });
+  const [polyIds, setPolyIds] = useState<string[]>(() => { try { const s = localStorage.getItem('atlas-polyids'); if (s) return JSON.parse(s) as string[]; } catch { /* ignore */ } return ALL_SETS.filter(s => !/^(sr-vr|po-ps|tb-th|mt-h)$/.test(s.id)).map(s => s.id); });
   useEffect(() => { try { localStorage.setItem('atlas-polygroups', JSON.stringify(polyGroups)); localStorage.setItem('atlas-polyids', JSON.stringify(polyIds)); } catch { /* ignore */ } }, [polyGroups, polyIds]);
   const polysOn = ALL_SETS.filter(s => polyGroups.includes(s.group) && polyIds.includes(s.id)).map(s => s.id);
   useEffect(() => { try { localStorage.setItem('atlas-cocoabeach', cbOn ? '1' : '0'); localStorage.setItem('atlas-cocoabeach-layers', JSON.stringify(cbLayers)); } catch { /* ignore */ } }, [cbOn, cbLayers]);
