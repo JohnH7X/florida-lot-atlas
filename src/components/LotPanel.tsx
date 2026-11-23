@@ -10,6 +10,9 @@ import { flwmiAt, type Flwmi } from '../lib/flwmi';
 import { palmCoastUtilitiesAt, type PalmCoastUtilities } from '../lib/palmCoast';
 import { hernandoUtilitiesAt, type HernandoUtilities } from '../lib/hernando';
 import { marionUtilitiesAt, type MarionUtilities } from '../lib/marion';
+import { collierUtilitiesAt, type CollierUtilities } from '../lib/collier';
+import { highlandsUtilitiesAt, type HighlandsUtilities } from '../lib/highlands';
+import { lakeUtilitiesAt, type LakeUtilities } from '../lib/lakeCounty';
 import { citrusUtilitiesAt, type CitrusUtilities } from '../lib/citrus';
 import { charlotteUtilitiesAt, type CharlotteUtilities } from '../lib/charlotte';
 import { portStLucieUtilitiesAt, type PortStLucieUtilities } from '../lib/portStLucie';
@@ -96,6 +99,16 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
     return () => { active = false; };
   }, [lot]);
   const [cb, setCb] = useState<CocoaBeachUtilities | null | 'loading'>(null);
+  const [co, setCo] = useState<CollierUtilities | null>(null);
+  const [hi, setHi] = useState<HighlandsUtilities | null>(null);
+  const [lk, setLk] = useState<LakeUtilities | null>(null);
+  useEffect(() => {
+    let active = true; setCo(null); setHi(null); setLk(null);
+    void collierUtilitiesAt(lot).then(r => { if (active) setCo(r); }).catch(() => undefined);
+    void highlandsUtilitiesAt(lot).then(r => { if (active) setHi(r); }).catch(() => undefined);
+    void lakeUtilitiesAt(lot).then(r => { if (active) setLk(r); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [lot]);
   const [hn, setHn] = useState<HernandoUtilities | null>(null);
   const [mn, setMn] = useState<MarionUtilities | null>(null);
   useEffect(() => {
@@ -310,6 +323,37 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
             {!cit.sewer.length && <li className="q"><span>Sewer</span><b>Not in a mapped operational area</b></li>}
           </ul>
           <p className="detail-foot">Operational areas show which utility is responsible for an area, not where pipes run or whether a line reaches the lot. Citrus County does not publish water or sewer pipe maps. Many Citrus Springs lots are on septic even inside a sewer operational area, so check the Health Department block as well and confirm with the utility. Source: Citrus County GIS.</p>
+        </div>}
+        {co && <div className="pb-util">
+          <b>Collier County utilities</b>
+          <ul>
+            <li className="q"><span>County water-sewer district</span><b>{co.countyWater ? 'Inside the Collier County Water-Sewer District' : 'Outside the county district (wells and septic are common)'}</b></li>
+            <li className="q"><span>County wastewater service area</span><b>{co.wastewater ? `${co.wastewater[0] + co.wastewater.slice(1).toLowerCase()} service area` : 'Not in a county wastewater service area'}</b></li>
+            {co.city && <li className="q"><span>City utility</span><b>{co.city.name}{co.city.phone ? ` · ${co.city.phone}` : ''}</b></li>}
+            {co.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{co.epa.name}{co.epa.population ? ` · serves about ${co.epa.population.toLocaleString()}` : ''}</b></li>}
+            <li className="q"><span>Nearest fire hydrant</span><b>{co.hydrant ? `${co.hydrant.feet < 1 ? 'On the lot' : `${Math.round(co.hydrant.feet)} ft`}${co.hydrant.id ? ` · ${co.hydrant.id}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Collier County does not publish water or sewer pipe maps, so no mains are shown. Being inside a service area does not mean a pipe reaches the lot; most of Golden Gate Estates is outside the district and relies on wells and septic. Confirm availability and any connection charges with Collier County Public Utilities or the city utility. Sources: Collier County Public Utilities GIS, Collier Sheriff’s Office hydrants, EPA water system areas.</p>
+        </div>}
+        {hi && <div className="pb-util">
+          <b>Highlands County utilities</b>
+          <ul>
+            <li className="q"><span>Sewer service area</span><b>{hi.sewer || 'Not in a mapped sewer service area (many Highlands subdivisions are on septic)'}</b></li>
+            {hi.district && <li className="q"><span>Special taxing district</span><b>{hi.district} · extra assessments may apply</b></li>}
+            {hi.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{hi.epa.name}</b></li>}
+            <li className="q"><span>Nearest fire hydrant</span><b>{hi.hydrant ? `${hi.hydrant.feet < 1 ? 'On the lot' : `${Math.round(hi.hydrant.feet)} ft`}${hi.hydrant.utility ? ` · ${hi.hydrant.utility}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Highlands County publishes no water pipe or service-area maps, and the state’s water layer misplaces Sebring’s system, so the water-system row can be missing in Sebring (the hydrant’s utility name is a better hint there). Hydrant records are a compiled 2018-era layer. A service area does not mean a line reaches the lot. Confirm availability and charges with the utility; check the Health Department block for sewer or septic status. Sources: Highlands County GIS, EPA water system areas.</p>
+        </div>}
+        {lk && <div className="pb-util">
+          <b>Lake County utilities</b>
+          <ul>
+            {lk.water.map((w, i) => <li key={i} className="q"><span>Water service area</span><b>{w.name}{w.agency && w.agency !== w.name ? ` · ${w.agency}` : ''}{w.phone ? ` · ${w.phone}` : ''}</b></li>)}
+            {!lk.water.length && <li className="q"><span>Water service area</span><b>Not in a mapped water service area</b></li>}
+            {lk.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{lk.epa.name}</b></li>}
+            <li className="q"><span>Nearest fire hydrant</span><b>{lk.hydrant ? `${lk.hydrant.feet < 1 ? 'On the lot' : `${Math.round(lk.hydrant.feet)} ft`}${lk.hydrant.owner ? ` · ${lk.hydrant.owner}` : ''}` : 'None within about 500 ft'}</b></li>
+          </ul>
+          <p className="detail-foot">Lake County publishes water service areas and hydrants, but no sewer areas or pipe maps, and Leesburg’s own maps are not available to browsers or are login-protected. A service area does not mean a line reaches the lot. See the Health Department block for sewer or septic status, and confirm availability and charges with the utility. Sources: Lake County GIS, EPA water system areas.</p>
         </div>}
         {hn && <div className="pb-util">
           <b>Hernando County utilities</b>

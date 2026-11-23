@@ -19,6 +19,7 @@ import { PC_BOUNDS, PC_LAYERS, pcTiles } from '../lib/palmCoast';
 import { HN_AREAS, HN_BOUNDS, HN_COLORS, hnCategory } from '../lib/hernando';
 import { MN_BOUNDS, MN_COLORS, MN_URL, mnCategory } from '../lib/marion';
 import { fetchPolygons } from '../lib/utilGeo';
+import { POLY_SETS } from '../lib/polySets';
 import { MELBOURNE_BOUNDS, MELBOURNE_LAYERS, melbourneTiles } from '../lib/melbourne';
 import { TITUSVILLE_BOUNDS, TITUSVILLE_LAYERS, titusvilleTiles } from '../lib/titusville';
 import { COCOA_BOUNDS, COCOA_LAYERS, cocoaTiles } from '../lib/cocoa';
@@ -60,6 +61,8 @@ interface Props {
   /** Hernando and Marion County utility-area polygons switched on (the id `areas`). */
   hernando?: string[];
   marion?: string[];
+  /** Ids from POLY_SETS (Collier, Highlands, Lake overlays) that are switched on. */
+  polys?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
   cocoaBeach?: string[];
   selectedLot: LotFeature | null;
@@ -256,6 +259,7 @@ export default function MapView(props: Props) {
           const polySets = [
             { p: 'hn', url: HN_AREAS, bounds: HN_BOUNDS, colors: HN_COLORS, cat: hnCategory, on: () => callbacks.current.hernando },
             { p: 'mn', url: MN_URL, bounds: MN_BOUNDS, colors: MN_COLORS, cat: mnCategory, on: () => callbacks.current.marion },
+            ...POLY_SETS.map(ps => ({ p: ps.id, url: ps.url, bounds: ps.bounds, colors: ps.colors, cat: ps.cat, on: () => callbacks.current.polys?.includes(ps.id) ? ['areas'] : [] })),
           ];
           let polyAbort: AbortController | null = null;
           for (const s of polySets) {
@@ -586,7 +590,7 @@ export default function MapView(props: Props) {
     for (const l of PC_LAYERS) if (m.getLayer(`pc-${l.id}`)) m.setLayoutProperty(`pc-${l.id}`, 'visibility', props.palmCoast?.includes(l.id) ? 'visible' : 'none');
   }, [props.charlotte, props.stLucie, props.citrus, props.flwmi, props.palmCoast, ready]);
   useEffect(() => { if (ready) refreshNpRef.current(); }, [props.northPort, ready]);
-  useEffect(() => { if (ready) refreshPolyRef.current(); }, [props.hernando, props.marion, ready]);
+  useEffect(() => { if (ready) refreshPolyRef.current(); }, [props.hernando, props.marion, props.polys, ready]);
   useEffect(() => { if (ready) refreshCbRef.current(); }, [props.cocoaBeach, ready]);
 
   useEffect(() => {
