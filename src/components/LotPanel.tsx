@@ -13,6 +13,7 @@ import { marionUtilitiesAt, type MarionUtilities } from '../lib/marion';
 import { collierUtilitiesAt, type CollierUtilities } from '../lib/collier';
 import { highlandsUtilitiesAt, type HighlandsUtilities } from '../lib/highlands';
 import { lakeUtilitiesAt, type LakeUtilities } from '../lib/lakeCounty';
+import { ruralUtilitiesAt, type RuralUtilities } from '../lib/ruralFl';
 import { sarasotaUtilitiesAt, type SarasotaUtilities } from '../lib/sarasota';
 import { polkOsceolaUtilitiesAt, type PolkOsceolaUtilities } from '../lib/polkOsceola';
 import { tampaBayUtilitiesAt, type TampaBayUtilities } from '../lib/tampaBay';
@@ -115,8 +116,10 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   const [co, setCo] = useState<CollierUtilities | null>(null);
   const [hi, setHi] = useState<HighlandsUtilities | null>(null);
   const [lk, setLk] = useState<LakeUtilities | null>(null);
+  const [rf, setRf] = useState<RuralUtilities | null>(null);
   useEffect(() => {
-    let active = true; setCo(null); setHi(null); setLk(null);
+    let active = true; setCo(null); setHi(null); setLk(null); setRf(null);
+    void ruralUtilitiesAt(lot).then(r => { if (active) setRf(r); }).catch(() => undefined);
     void collierUtilitiesAt(lot).then(r => { if (active) setCo(r); }).catch(() => undefined);
     void highlandsUtilitiesAt(lot).then(r => { if (active) setHi(r); }).catch(() => undefined);
     void lakeUtilitiesAt(lot).then(r => { if (active) setLk(r); }).catch(() => undefined);
@@ -407,6 +410,21 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
             <li className="q"><span>Nearest fire hydrant</span><b>{hi.hydrant ? `${hi.hydrant.feet < 1 ? 'On the lot' : `${Math.round(hi.hydrant.feet)} ft`}${hi.hydrant.utility ? ` · ${hi.hydrant.utility}` : ''}` : 'None within about 500 ft'}</b></li>
           </ul>
           <p className="detail-foot">Highlands County publishes no water pipe or service-area maps, and the state’s water layer misplaces Sebring’s system, so the water-system row can be missing in Sebring (the hydrant’s utility name is a better hint there). Hydrant records are a compiled 2018-era layer. A service area does not mean a line reaches the lot. Confirm availability and charges with the utility; check the Health Department block for sewer or septic status. Sources: Highlands County GIS, EPA water system areas.</p>
+        </div>}
+        {rf && <div className="pb-util">
+          <b>{rf.region.label} utilities</b>
+          <ul>
+            {rf.sjrwmd.map((w, i) => <li key={i} className="q"><span>Water supply area (SJRWMD)</span><b>{w.name}{w.category ? ` · ${w.category.toLowerCase()} utility` : ''}</b></li>)}
+            {rf.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{rf.epa.name}{rf.epa.population ? ` · serves about ${rf.epa.population.toLocaleString()}` : ''}</b></li>}
+            {!rf.epa && !rf.sjrwmd.length && <li className="q"><span>Public water system</span><b>None mapped here (wells are likely)</b></li>}
+            {rf.veroWater && <li className="q"><span>City of Vero Beach water</span><b>Inside the city’s water service area</b></li>}
+            {rf.vero && <li className="q"><span>{rf.vero.city || 'City'} sewer record</span><b>{rf.vero.citySewer === 'Yes' ? 'City sewer: yes' : rf.vero.citySewer === 'No' ? 'City sewer: no' : 'City sewer: not applicable'}{rf.vero.stepInstalled ? ' · STEP system installed' : rf.vero.stepEligible ? ' · eligible for a STEP system' : ''}</b></li>}
+            {rf.sewerProject && <li className="q"><span>Septic-to-sewer project</span><b>{rf.sewerProject.name} · {rf.sewerProject.status}{rf.sewerProject.year ? ` ${rf.sewerProject.year}` : ''}</b></li>}
+            {rf.sewerProgram && <li className="q"><span>Sewer connection program</span><b>Sewer may be available (Indian River County Sewer Connection Assistance Program)</b></li>}
+            {rf.region.id === 'pu' && <li className="q"><span>Water main (Palatka area)</span><b>{rf.putnamMain ? `${rf.putnamMain.feet < 1 ? 'On the lot' : `${Math.round(rf.putnamMain.feet)} ft`}${rf.putnamMain.size ? ` · ${rf.putnamMain.size} in` : ''}${rf.putnamMain.material ? ` ${rf.putnamMain.material}` : ''}` : 'None mapped within about 500 ft'}</b></li>}
+            {rf.msbu && <li className="q"><span>Assessment district</span><b>{rf.msbu} · extra assessments may apply</b></li>}
+          </ul>
+          <p className="detail-foot">{rf.region.label} publishes {rf.region.id === 'ir' ? 'septic-to-sewer projects and, for the City of Vero Beach, sewer-service parcels and STEP sewer mains, but no county water or sewer pipe maps' : rf.region.id === 'pu' ? 'water mains only for the Palatka area, and no sewer maps' : rf.region.id === 'hg' ? 'assessment districts only, and no utility maps' : 'no utility maps that a browser can use'}. Water system areas come from the EPA and water-district datasets and are approximate; an area does not mean a line reaches the lot. Where nothing is mapped, wells and septic are common. See the Health Department block for sewer or septic status, and confirm availability and charges with the utility. Sources: EPA water system areas, St. Johns River WMD, Indian River County, City of Vero Beach, Putnam County GIS, Hendry County GIS.</p>
         </div>}
         {lk && <div className="pb-util">
           <b>Lake County utilities</b>
