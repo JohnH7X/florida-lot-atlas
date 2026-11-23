@@ -319,3 +319,8 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 
 .fw-legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10px;color:#4f5e4a;margin:4px 0 2px 2px}
 .fw-legend span{display:inline-flex;align-items:center;gap:4px}
+
+.here-button{position:absolute;right:25px;bottom:158px;z-index:3;display:flex;align-items:center;gap:7px;background:#1a73e8;color:#fff;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.18)}.here-button:hover{background:#1663c7}
+.here-status{position:absolute;right:25px;bottom:202px;z-index:3;background:#fff;border:1px solid #d8dccf;border-radius:6px;padding:8px 11px;font-size:11px;color:#4b5a4a;max-width:260px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate){display:none!important}
+@media(max-width:760px){.here-button{bottom:146px;right:52px;padding:8px 12px;font-size:11px}.here-status{bottom:190px;right:12px}}

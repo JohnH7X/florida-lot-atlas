@@ -93,6 +93,8 @@ export default function MapView(props: Props) {
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState('Loading Florida map…');
   const marker = useRef<maplibregl.Marker | null>(null);
+  const geo = useRef<maplibregl.GeolocateControl | null>(null);
+  const [hereStatus, setHereStatus] = useState('');
   const lotRequest = useRef<AbortController | null>(null);
   const [lotStatus, setLotStatus] = useState('');
   const [satellite, setSatellite] = useState(() => { if (/(^|[#&?])map=satellite/.test(window.location.hash + window.location.search)) return true; try { return localStorage.getItem('atlas-basemap') === 'satellite'; } catch { return false; } });
@@ -176,6 +178,15 @@ export default function MapView(props: Props) {
           canvasContextAttributes: { preserveDrawingBuffer: true } });
         map.current = instance;
         instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+        // "Here I am": the browser's location as a blue dot, followed while the user moves.
+        const g = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true, showAccuracyCircle: true, fitBoundsOptions: { maxZoom: 17.5 } });
+        instance.addControl(g, 'bottom-right'); geo.current = g;
+        g.on('geolocate', (e: GeolocationPosition) => {
+          const { longitude: x, latitude: y } = e.coords;
+          setHereStatus(x < -87.7 || x > -79.8 || y < 24.4 || y > 31.1 ? 'You are outside the area this atlas covers.' : '');
+        });
+        g.on('error', (e: GeolocationPositionError) => setHereStatus(e.code === 1 ? 'Location blocked. Allow location for this site in your browser settings.' : 'Your location is unavailable right now.'));
+        g.on('outofmaxbounds', () => setHereStatus('You are outside the area this atlas covers.'));
         instance.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
         instance.addControl(new maplibregl.AttributionControl({ compact: true,
           customAttribution: 'Parcels: Florida Department of Revenue via <a href="https://geodata.floridagio.gov/" target="_blank">Florida GIO</a> · Geocoding: Esri' }), 'bottom-right');
@@ -590,6 +601,8 @@ export default function MapView(props: Props) {
   return <div className={`map-wrap${props.placing ? ' placing' : ''}`}><div ref={host} className="map-canvas" aria-label="Interactive Florida parcel map" />
     {!ready && !message && <div className="map-message">Loading map…</div>}
     {message && <div className={`map-message ${message.startsWith('Basemap') ? 'subtle' : ''}`} role="status">{message}</div>}
+    {ready && <button className="here-button" onClick={() => { setHereStatus('Finding you…'); window.setTimeout(() => setHereStatus(v => v === 'Finding you…' ? '' : v), 8000); geo.current?.trigger(); }} title="Show where I am"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><circle cx="12" cy="12" r="3.5" fill="currentColor"/><circle cx="12" cy="12" r="8"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>Here I am</button>}
+    {hereStatus && <div className="here-status" role="status">{hereStatus}</div>}
     {ready && <div className="basemap-switch" role="group" aria-label="Basemap"><button className={satellite ? '' : 'on'} aria-pressed={!satellite} onClick={() => setSatellite(false)}>Map</button><button className={satellite ? 'on' : ''} aria-pressed={satellite} onClick={() => setSatellite(true)}>Satellite</button></div>}
     {lotStatus && <div className="lot-status" role="status">{lotStatus}</div>}
     {ready && saleCounts && <div className="sale-scale" role="group" aria-label="Latest sale colours">
