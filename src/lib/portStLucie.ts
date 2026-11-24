@@ -17,19 +17,29 @@ export const PSL_LAYERS: PslLayer[] = [
 export const pslTiles = (l: PslLayer) =>
   `${U}/${l.service}/MapServer/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=512,512&format=png32&transparent=true&layers=show:${l.layer}&f=image`;
 
-export interface PortStLucieUtilities { city: string | null; areas: string[]; hydrant: { feet: number; id: string; owner: string } | null }
+export interface PortStLucieUtilities {
+  city: string | null; areas: string[]; hydrant: { feet: number; id: string; owner: string } | null;
+  /** Service-area boundaries the parcel falls in (St. Lucie County Utilities, Port St. Lucie Utilities, Fort Pierce Utilities Authority). */
+  serviceAreas: string[];
+  /** Inside St. Lucie County's Urban Service Boundary (where the county plans central water and sewer). */
+  urbanService: boolean;
+}
 
 /** St. Lucie County utility facts for a parcel, or null when it is outside St. Lucie County. */
 export async function portStLucieUtilitiesAt(lot: LotFeature): Promise<PortStLucieUtilities | null> {
   const c = lotCenter(lot); if (!c || !inBounds(c, PSL_BOUNDS)) return null;
   const pt = { x: c[0], y: c[1] }, env = envAround(c), rs = lotRings(lot);
-  const [city, areas, hyd] = await Promise.all([
+  const inSa = (layer: number) => safe(esriQuery(`${U}/UtilityServiceAreas/MapServer/${layer}`, pt, 'esriGeometryPoint', 'OBJECTID').then(r => r.length > 0), false);
+  const [city, areas, hyd, slc, psl, fpua, usb] = await Promise.all([
     safe(esriQuery(MUNI, pt, 'esriGeometryPoint', 'City').then(r => text(r[0]?.attributes.City) || null), null),
     safe(esriQuery(`${U}/UtilitiesOperationalAreas/MapServer/0`, pt, 'esriGeometryPoint', 'AREANAME').then(r => r.map(h => text(h.attributes.AREANAME)).filter(Boolean)), [] as string[]),
     safe(esriQuery(`${U}/FireHydrants/MapServer/0`, env, 'esriGeometryEnvelope', 'HydrantID,AdministrativeArea,ENABLED', true), []),
+    inSa(1), inSa(2), inSa(3),
+    safe(esriQuery(`${U}/UrbanServiceBoundary/MapServer/0`, pt, 'esriGeometryPoint', 'OBJECTID').then(r => r.length > 0), false),
   ]);
+  const serviceAreas = [slc && 'St. Lucie County Utilities', psl && 'Port St. Lucie Utilities', fpua && 'Fort Pierce Utilities Authority'].filter((x): x is string => !!x);
   const h = nearestPoint(hyd, rs, 'HydrantID', a => a.ENABLED === 0);
   const owner = h ? text(hyd.find(x => text(x.attributes.HydrantID) === h.id)?.attributes.AdministrativeArea) : '';
-  if (!city && !areas.length && !h) return null;
-  return { city, areas, hydrant: h ? { ...h, owner } : null };
+  if (!city && !areas.length && !h && !serviceAreas.length && !usb) return null;
+  return { city, areas, hydrant: h ? { ...h, owner } : null, serviceAreas, urbanService: usb };
 }

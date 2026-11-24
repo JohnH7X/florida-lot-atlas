@@ -7,13 +7,16 @@ import { envAround, esriQuery, inBounds, lotRings, nearestLine, nearestPoint, sa
  */
 const PASCO = 'https://services6.arcgis.com/Mo4MddfRHpFwT7UF/arcgis/rest/services';
 export const PASCO_WATER = `${PASCO}/Water_Service_Areas/FeatureServer/1`;
+/** Pasco County Utilities septic-to-sewer program: parcels listed as eligible (one project area in central Pasco, around Land O' Lakes / Odessa). */
+export const PASCO_S2S_ELIG = `${PASCO}/Septic_Program_Eligible_Customers_Parcels/FeatureServer/0`;
+
 const HC = 'https://services.arcgis.com/apTfC6SUmnNfnxuF/arcgis/rest/services';
 export const HC_POTABLE = `${HC}/Potable_Water_Service_Area_Boundary/FeatureServer/0`;
 const HC_HYD = `${HC}/FireRescue_Hydrants/FeatureServer/0`;
 export const TAMPA = 'https://arcgis.tampagov.net/arcgis/rest/services/OpenData';
 export const TB_BOUNDS: [number, number, number, number] = [-82.95, 27.55, -81.95, 28.5];
 export interface TampaBayUtilities {
-  pasco: { water: string; phone: string; hydrant: { feet: number; id: string } | null } | null;
+  pasco: { water: string; phone: string; hydrant: { feet: number; id: string } | null; septicProgram: boolean } | null;
   hillsborough: { tampaWater: string; tampaSewer: string; countyWater: string; sewerMain: Line | null; hydrant: { feet: number; id: string; owner: string } | null } | null;
 }
 const PASCO_BOX: [number, number, number, number] = [-82.95, 28.15, -82.0, 28.5];
@@ -26,14 +29,16 @@ export async function tampaBayUtilitiesAt(lot: LotFeature): Promise<TampaBayUtil
   const E = (url: string, f: string) => safe(esriQuery(url, env, 'esriGeometryEnvelope', f, true), [] as Hit[]);
   const none = Promise.resolve([] as Hit[]);
   const inPasco = inBounds(c, PASCO_BOX), inHills = inBounds(c, HILLS_BOX);
-  const [pw, ph, tw, ts, hc, hh, tg, tp] = await Promise.all([
+  const [pw, ph, tw, ts, hc, hh, tg, tp, se] = await Promise.all([
     inPasco ? P(PASCO_WATER, 'NAME,PHONE') : none, inPasco ? E(`${PASCO}/Hydrants/FeatureServer/0`, 'ASSETNUMBER,STREET_ADDR') : none,
     inHills ? P(`${TAMPA}/UtilityWater/MapServer/1`, 'SERVICEBY') : none, inHills ? P(`${TAMPA}/UtilitySewer/MapServer/7`, 'SERVICEBY') : none,
     inHills ? P(HC_POTABLE, 'AREA_NAME,Potable_Wa,PWS_ID') : none, inHills ? E(HC_HYD, 'HYDNBR,JURISDICTION,IN_OUT_SERVICE') : none,
     inHills ? E(`${TAMPA}/UtilitySewer/MapServer/6`, 'DIAMETER,MATERIAL,LIFECYCLESTATUS') : none, inHills ? E(`${TAMPA}/UtilitySewer/MapServer/5`, 'DIAMETER,MATERIAL,LIFECYCLESTATUS') : none,
+    inPasco ? P(PASCO_S2S_ELIG, 'FID') : none,
   ]);
   const act = (a: Record<string, unknown>) => !!text(a.LIFECYCLESTATUS) && text(a.LIFECYCLESTATUS) !== 'Active';
-  const pasco = pw.length || ph.length ? { water: text(pw[0]?.attributes.NAME), phone: text(pw[0]?.attributes.PHONE), hydrant: nearestPoint(ph, rs, 'STREET_ADDR') } : null;
+  const septicProgram = se.length > 0;
+  const pasco = pw.length || ph.length || septicProgram ? { water: text(pw[0]?.attributes.NAME), phone: text(pw[0]?.attributes.PHONE), hydrant: nearestPoint(ph, rs, 'STREET_ADDR'), septicProgram } : null;
   const g = nearestLine(tg, rs, { size: 'DIAMETER', material: 'MATERIAL', kind: 'gravity', skip: act }), f = nearestLine(tp, rs, { size: 'DIAMETER', material: 'MATERIAL', kind: 'force main', skip: act });
   const h = nearestPoint(hh, rs, 'HYDNBR', a => text(a.IN_OUT_SERVICE) === 'OUT');
   const owner = h ? text(hh.find(x => text(x.attributes.HYDNBR) === h.id)?.attributes.JURISDICTION) : '';

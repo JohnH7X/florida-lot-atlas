@@ -11,6 +11,8 @@ export const SCU_WATER = `${NET}/WaterDistributionLineCollection/FeatureServer/5
 export const SCU_GRAV = `${NET}/SewerNetworkLineCollection/FeatureServer/315001`;
 export const SCU_FORCE = `${NET}/SewerNetworkLineCollection/FeatureServer/315002`;
 const SCU_HYD = `${NET}/WaterDistributionDeviceCollection/FeatureServer/501007`;
+/** Sarasota County GIS: parcels identified as likely or known septic (from county utility billing, Englewood Water District availability, the Property Appraiser and DOH records). */
+export const SR_SEPTIC = `${NET}/Sarasota_County_Likely_or_Known_Septic_Areas2/FeatureServer/1`;
 export const VENICE = 'https://gis.venicefl.gov/server/rest/services/util';
 const CITY_S = 'https://services3.arcgis.com/AWDwYUpli8WqpWxQ/arcgis/rest/services';
 const EWD = 'https://services6.arcgis.com/PyQXVJ3wiDmV8alx/arcgis/rest/services/Englewood_Water_District_Public_Web_Data/FeatureServer/4';
@@ -19,6 +21,8 @@ export interface SarasotaUtilities {
   franchise: { name: string; water: string; sanitary: string; reuse: string; phone: string } | null;
   waterMain: Line | null; sewerMain: Line | null; hydrant: { feet: number; id: string; owner: string } | null;
   ewd: { water: string; sewer: string; phase: string } | null;
+  /** On Sarasota County's likely-or-known septic parcel list. */
+  septic: boolean;
 }
 const inService = (a: Record<string, unknown>) => a.lifecyclestatus != null && Number(a.lifecyclestatus) !== 8;
 const best = (list: (Line | null)[]) => list.filter((l): l is Line => !!l).sort((a, b) => a.feet - b.feet)[0] || null;
@@ -28,7 +32,11 @@ const tag = (l: Line | null, kind: string): Line | null => (l ? { ...l, kind } :
 export async function sarasotaUtilitiesAt(lot: LotFeature): Promise<SarasotaUtilities | null> {
   const c = lotCenter(lot); if (!c || !inBounds(c, SR_BOUNDS)) return null;
   const pt = { x: c[0], y: c[1] }, env = envAround(c), rs = lotRings(lot);
-  const frH = await safe(esriQuery(SR_FRANCHISE, pt, 'esriGeometryPoint', 'fran_name,water,sanitary,reuse,phone'), []);
+  const [frH, sep] = await Promise.all([
+    safe(esriQuery(SR_FRANCHISE, pt, 'esriGeometryPoint', 'fran_name,water,sanitary,reuse,phone'), []),
+    safe(esriQuery(SR_SEPTIC, pt, 'esriGeometryPoint', 'OBJECTID'), []),
+  ]);
+  const septic = sep.length > 0;
   const a = frH[0]?.attributes;
   const franchise = a ? { name: text(a.fran_name), water: text(a.water), sanitary: text(a.sanitary), reuse: text(a.reuse), phone: text(a.phone) } : null;
   const fn = (franchise?.name || '').toUpperCase();
@@ -54,6 +62,6 @@ export async function sarasotaUtilitiesAt(lot: LotFeature): Promise<SarasotaUtil
     { p: nearestPoint(sh, rs, 'assetid', inService), o: 'Sarasota County Utilities' }, { p: nearestPoint(vh, rs, 'FacilityID'), o: 'City of Venice' }, { p: nearestPoint(ch, rs, 'FACILITY_ID'), o: 'City of Sarasota' },
   ].filter(x => x.p).sort((x, y) => x.p!.feet - y.p!.feet)[0];
   const e = ewdH[0]?.attributes;
-  if (!franchise && !waterMain && !sewerMain && !hs && !e) return null;
-  return { franchise, waterMain, sewerMain, hydrant: hs ? { ...hs.p!, owner: hs.o } : null, ewd: e ? { water: text(e.aWater), sewer: text(e.aWaste), phase: text(e.WWPhase) } : null };
+  if (!franchise && !waterMain && !sewerMain && !hs && !e && !septic) return null;
+  return { franchise, waterMain, sewerMain, hydrant: hs ? { ...hs.p!, owner: hs.o } : null, ewd: e ? { water: text(e.aWater), sewer: text(e.aWaste), phase: text(e.WWPhase) } : null, septic };
 }

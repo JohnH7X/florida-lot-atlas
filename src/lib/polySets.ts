@@ -2,8 +2,11 @@ import { CO_BOUNDS, PUD } from './collier';
 import { HI_BOUNDS, HI_TAX, HI_WW } from './highlands';
 import { LK_BOUNDS, LK_WS } from './lakeCounty';
 import { SR_BOUNDS, SR_FRANCHISE, SCU_FORCE, SCU_GRAV, SCU_WATER, VENICE } from './sarasota';
-import { DAV_BOUNDS, DAV_FORCE, DAV_GRAV, PCU, PO_BOUNDS, TOHO } from './polkOsceola';
-import { HC_POTABLE, PASCO_WATER, TAMPA, TB_BOUNDS } from './tampaBay';
+import { DAV_BOUNDS, DAV_FORCE, DAV_GRAV, PCU, PO_BOUNDS, POIN_BOUNDS, POIN_PROJECTS, TOHO } from './polkOsceola';
+import { MN_BOUNDS, MN_BUFFER } from './marion';
+import { CH_BOUNDS, CH_MSBU } from './charlotte';
+import { PSL_BOUNDS } from './portStLucie';
+import { HC_POTABLE, PASCO_S2S_ELIG, PASCO_WATER, TAMPA, TB_BOUNDS } from './tampaBay';
 import { EPA_URL } from './epaWater';
 import { HD_MSBU, HG_BOUNDS, IR_BOUNDS, IR_S2S, PU_BOUNDS, PU_MAINS, RURAL_BOUNDS, SJ_WATER, VB_STEP, VB_WATER } from './ruralFl';
 import { MAN_BOUNDS, MAN_BRADEN, MAN_BRADENTON, MAN_RECLAIM, MAN_SEWER, MAN_SEWER_DISTRICTS, MAN_WATER } from './manatee';
@@ -26,6 +29,9 @@ export const POLY_GROUPS: { id: string; label: string; note: string }[] = [
   { id: 'manatee', label: 'Manatee County utilities (Bradenton, Parrish)', note: 'Manatee County Utilities water, sewer and reclaimed mains (zoom in), sewer districts and the Braden River service area.' },
   { id: 'volusia', label: 'Volusia County utilities (Daytona, DeLand, Port Orange)', note: 'Volusia County GIS water and sewer service areas by provider, plus the City of Port Orange’s water and sewer mains. Other cities publish areas only. Zoom in.' },
   { id: 'martin', label: 'Martin County utilities (Stuart)', note: 'Only the City of Stuart’s utility boundary is public. Martin County Utilities’ own maps are not available. Zoom in.' },
+  { id: 'marionx', label: 'Marion County water infrastructure', note: 'Marion County GIS’s 500-ft buffer around mapped water utility infrastructure (central Marion only). Outside it, wells are common. Zoom in.' },
+  { id: 'charlottex', label: 'Charlotte County utility assessment areas', note: 'Charlotte County Utilities water and wastewater MSBUs (expansion areas with a utility assessment, such as South Gulf Cove and Rotonda). Zoom in.' },
+  { id: 'stluciex', label: 'St. Lucie County Urban Service Boundary', note: 'Where St. Lucie County plans central water and sewer. Outside it, lots are rural (wells and septic are typical). Zoom in.' },
   { id: 'lake', label: 'Lake County water areas', note: 'Lake County GIS water service areas (cities and private utilities). No pipe maps or sewer areas are public. Zoom in.' },
 ];
 export const POLY_SETS: PolySet[] = [
@@ -39,6 +45,11 @@ export const POLY_SETS: PolySet[] = [
   { id: 'po-dist', group: 'polkosceola', label: 'Toho operating districts (incl. FGUA Poinciana)', url: `${TOHO}/14`, bounds: PO_BOUNDS, colors: { a: '#0070ff' }, cat: one('a'), swatch: '#0070ff' },
   { id: 'po-rec', group: 'polkosceola', label: 'Toho reclaimed water areas', url: `${TOHO}/9`, bounds: PO_BOUNDS, colors: { a: '#00a884' }, cat: one('a'), swatch: '#00a884' },
   { id: 'tb-pasco', group: 'tampabay', label: 'Pasco water service areas', url: PASCO_WATER, bounds: TB_BOUNDS, colors: { a: '#0070ff' }, cat: one('a'), swatch: '#0070ff' },
+  { id: 'tb-s2s', group: 'tampabay', label: 'Pasco septic-to-sewer eligible parcels', url: PASCO_S2S_ELIG, bounds: TB_BOUNDS, colors: { a: '#e8a200' }, cat: one('a'), swatch: '#e8a200' },
+  { id: 'po-lx', group: 'polkosceola', label: 'Toho Poinciana line-extension projects (by status)', url: POIN_PROJECTS, bounds: POIN_BOUNDS, colors: { 'Construction Completed': '#3aa30a', 'Released for Meters': '#00a884', 'Under Construction': '#e8a200', Proposed: '#7fb3e6', other: '#9aa39a' }, cat: p => String(p.PublicStatus || 'other'), swatch: '#3aa30a' },
+  { id: 'mn-buf', group: 'marionx', label: 'Within 500 ft of water infrastructure', url: MN_BUFFER, bounds: MN_BOUNDS, colors: { a: '#0070ff' }, cat: one('a'), swatch: '#0070ff' },
+  { id: 'ch-msbu', group: 'charlottex', label: 'Water / wastewater MSBUs', url: CH_MSBU, bounds: CH_BOUNDS, colors: { a: '#d62828' }, cat: one('a'), swatch: '#d62828' },
+  { id: 'sl-usb', group: 'stluciex', label: 'Urban Service Boundary', url: 'https://slcgis.stlucieco.gov/hosting/rest/services/UtilityServices/UrbanServiceBoundary/FeatureServer/0', bounds: PSL_BOUNDS, colors: { a: '#00a884' }, cat: one('a'), swatch: '#00a884' },
   { id: 'tb-hc', group: 'tampabay', label: 'Hillsborough County potable water areas', url: HC_POTABLE, bounds: TB_BOUNDS, colors: { a: '#00a884' }, cat: one('a'), swatch: '#00a884' },
   { id: 'tb-tw', group: 'tampabay', label: 'Tampa / county water service areas', url: `${TAMPA}/UtilityWater/MapServer/1`, bounds: TB_BOUNDS, colors: { a: '#7fb3e6' }, cat: one('a'), swatch: '#7fb3e6' },
   { id: 'tb-ts', group: 'tampabay', label: 'Tampa / county sewer service areas', url: `${TAMPA}/UtilitySewer/MapServer/7`, bounds: TB_BOUNDS, colors: { a: '#d9b38c' }, cat: one('a'), swatch: '#d9b38c' },
