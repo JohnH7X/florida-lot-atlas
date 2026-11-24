@@ -11,6 +11,8 @@ import { EPA_URL } from './epaWater';
 import { HD_MSBU, HG_BOUNDS, IR_BOUNDS, IR_S2S, PU_BOUNDS, PU_MAINS, RURAL_BOUNDS, SJ_WATER, VB_STEP, VB_WATER } from './ruralFl';
 import { MAN_BOUNDS, MAN_BRADEN, MAN_BRADENTON, MAN_RECLAIM, MAN_SEWER, MAN_SEWER_DISTRICTS, MAN_WATER } from './manatee';
 import { MARTIN_BOUNDS, PO_FORCE, PO_GRAVITY, PO_WATER, PORT_ORANGE_BOUNDS, STUART_AREA, VO_AREAS, VO_BOUNDS, voType } from './volusiaMartin';
+import { BAY_AREAS, BAY_BOUNDS, BAY_FORCE, BAY_GRAV, BAY_WATER, ECUA_SEWER_EXP, ECUA_WATER, ESC_BOUNDS, SR_BOUNDS_PH, SR_GB_SEWER, SR_PACE_FORCE, SR_PACE_GRAV, SR_SEWER_FRAN } from './panhandle';
+import { SJ_BOUNDS, SJC_ZONES, STA_AREA, STA_BOUNDS, STA_FORCE, STA_GRAV } from './stJohnsClay';
 import type { VectorLayer } from './utilGeo';
 
 /** Service-area polygon overlays drawn as vectors for the map view (one per layer id). `cat` picks the colour key for each feature. */
@@ -32,6 +34,10 @@ export const POLY_GROUPS: { id: string; label: string; note: string }[] = [
   { id: 'marionx', label: 'Marion County water infrastructure', note: 'Marion County GIS’s 500-ft buffer around mapped water utility infrastructure (central Marion only). Outside it, wells are common. Zoom in.' },
   { id: 'charlottex', label: 'Charlotte County utility assessment areas', note: 'Charlotte County Utilities water and wastewater MSBUs (expansion areas with a utility assessment, such as South Gulf Cove and Rotonda). Zoom in.' },
   { id: 'stluciex', label: 'St. Lucie County Urban Service Boundary', note: 'Where St. Lucie County plans central water and sewer. Outside it, lots are rural (wells and septic are typical). Zoom in.' },
+  { id: 'bay', label: 'Bay County utilities (Panama City area)', note: 'Bay County GIS: county and city water and sewer mains (zoom in) and the county’s exclusive utility service areas. The City of Panama City’s own mains are not published.' },
+  { id: 'escambia', label: 'Escambia County utilities (ECUA)', note: 'Emerald Coast Utilities Authority water franchise areas and sewer expansion projects. No pipe maps are public. Zoom in.' },
+  { id: 'santarosa', label: 'Santa Rosa County utilities', note: 'Sewer franchise areas (Santa Rosa County GIS) and Pace Water System and Gulf Breeze sewer mains (zoom in).' },
+  { id: 'stjohns', label: 'St. Johns County utilities', note: 'St. Johns County utility zones (which utility serves where) and the City of St. Augustine’s sewer mains and service area (zoom in). The county’s own pipe maps are not public.' },
   { id: 'lake', label: 'Lake County water areas', note: 'Lake County GIS water service areas (cities and private utilities). No pipe maps or sewer areas are public. Zoom in.' },
 ];
 export const POLY_SETS: PolySet[] = [
@@ -50,6 +56,12 @@ export const POLY_SETS: PolySet[] = [
   { id: 'mn-buf', group: 'marionx', label: 'Within 500 ft of water infrastructure', url: MN_BUFFER, bounds: MN_BOUNDS, colors: { a: '#0070ff' }, cat: one('a'), swatch: '#0070ff' },
   { id: 'ch-msbu', group: 'charlottex', label: 'Water / wastewater MSBUs', url: CH_MSBU, bounds: CH_BOUNDS, colors: { a: '#d62828' }, cat: one('a'), swatch: '#d62828' },
   { id: 'sl-usb', group: 'stluciex', label: 'Urban Service Boundary', url: 'https://slcgis.stlucieco.gov/hosting/rest/services/UtilityServices/UrbanServiceBoundary/FeatureServer/0', bounds: PSL_BOUNDS, colors: { a: '#00a884' }, cat: one('a'), swatch: '#00a884' },
+  { id: 'bay-sa', group: 'bay', label: 'Exclusive utility service areas', url: BAY_AREAS, bounds: BAY_BOUNDS, colors: { a: '#7fb3e6' }, cat: one('a'), swatch: '#7fb3e6' },
+  { id: 'esc-wf', group: 'escambia', label: 'Water franchise areas', url: ECUA_WATER, bounds: ESC_BOUNDS, colors: { none: '#9aa39a', ecua: '#0070ff', other: '#00a884' }, cat: p => /no service|not served/i.test(String(p.Served_By || '')) ? 'none' : /EMERALD COAST/i.test(String(p.Served_By || '')) ? 'ecua' : 'other', swatch: '#0070ff' },
+  { id: 'esc-sx', group: 'escambia', label: 'ECUA sewer expansion projects (by status)', url: ECUA_SEWER_EXP, bounds: ESC_BOUNDS, colors: { Complete: '#3aa30a', 'Under Construction': '#e8a200', 'In Design': '#7fb3e6', Funded: '#7fb3e6', Future: '#9aa39a', 'Waiver Period': '#00a884' }, cat: p => String(p.ProjectStatus || ''), swatch: '#3aa30a' },
+  { id: 'sr-sf', group: 'santarosa', label: 'Sewer franchise areas', url: SR_SEWER_FRAN, bounds: SR_BOUNDS_PH, colors: { none: '#9aa39a', a: '#c98a4b' }, cat: p => /no sewer/i.test(String(p.SewerFranName || '')) ? 'none' : 'a', swatch: '#c98a4b' },
+  { id: 'sj-uz', group: 'stjohns', label: 'Utility zones', url: SJC_ZONES, bounds: SJ_BOUNDS, colors: { a: '#4aa3df' }, cat: one('a'), swatch: '#4aa3df' },
+  { id: 'sj-sta', group: 'stjohns', label: 'City of St. Augustine service area', url: STA_AREA, bounds: STA_BOUNDS, colors: { a: '#8e44ad' }, cat: one('a'), swatch: '#8e44ad' },
   { id: 'tb-hc', group: 'tampabay', label: 'Hillsborough County potable water areas', url: HC_POTABLE, bounds: TB_BOUNDS, colors: { a: '#00a884' }, cat: one('a'), swatch: '#00a884' },
   { id: 'tb-tw', group: 'tampabay', label: 'Tampa / county water service areas', url: `${TAMPA}/UtilityWater/MapServer/1`, bounds: TB_BOUNDS, colors: { a: '#7fb3e6' }, cat: one('a'), swatch: '#7fb3e6' },
   { id: 'tb-ts', group: 'tampabay', label: 'Tampa / county sewer service areas', url: `${TAMPA}/UtilitySewer/MapServer/7`, bounds: TB_BOUNDS, colors: { a: '#d9b38c' }, cat: one('a'), swatch: '#d9b38c' },
@@ -94,6 +106,10 @@ VECTOR_SETS.push(
   { id: 'vo-pow', group: 'volusia', label: 'Port Orange water mains', layer: { id: 'vo-pow', label: '', urls: [PO_WATER], kind: 'line', color: '#1f6fd1', on: true }, bounds: PORT_ORANGE_BOUNDS, minZoom: 14, swatch: '#1f6fd1' },
   { id: 'vo-pos', group: 'volusia', label: 'Port Orange sewer mains', layer: { id: 'vo-pos', label: '', urls: [PO_GRAVITY, PO_FORCE], kind: 'line', color: '#b5651d', on: true }, bounds: PORT_ORANGE_BOUNDS, minZoom: 14, swatch: '#b5651d' },
   { id: 'ir-step', group: 'indianriver', label: 'Vero Beach STEP sewer mains', layer: { id: 'ir-step', label: '', urls: [VB_STEP], kind: 'line', color: '#b5651d', on: true }, bounds: IR_BOUNDS, minZoom: 14, swatch: '#b5651d' },
+  { id: 'bay-wm', group: 'bay', label: 'Water mains', layer: { id: 'bay-wm', label: '', urls: [BAY_WATER], kind: 'line', color: '#1f6fd1', on: true }, bounds: BAY_BOUNDS, minZoom: 15, swatch: '#1f6fd1' },
+  { id: 'bay-sm', group: 'bay', label: 'Sewer mains', layer: { id: 'bay-sm', label: '', urls: [BAY_GRAV, BAY_FORCE], kind: 'line', color: '#b5651d', on: true }, bounds: BAY_BOUNDS, minZoom: 15, swatch: '#b5651d' },
+  { id: 'sr-sm', group: 'santarosa', label: 'Pace and Gulf Breeze sewer mains', layer: { id: 'sr-sm', label: '', urls: [SR_PACE_GRAV, SR_PACE_FORCE, SR_GB_SEWER], kind: 'line', color: '#b5651d', on: true }, bounds: SR_BOUNDS_PH, minZoom: 14, swatch: '#b5651d' },
+  { id: 'sj-ss', group: 'stjohns', label: 'St. Augustine sewer mains', layer: { id: 'sj-ss', label: '', urls: [STA_GRAV, STA_FORCE], kind: 'line', color: '#b5651d', on: true }, bounds: STA_BOUNDS, minZoom: 14, swatch: '#b5651d' },
   { id: 'pu-wm', group: 'putnam', label: 'Palatka-area water mains', layer: { id: 'pu-wm', label: '', urls: [PU_MAINS], kind: 'line', color: '#1f6fd1', on: true }, bounds: PU_BOUNDS, minZoom: 14, swatch: '#1f6fd1' },
 );
 export const ALL_SETS: { id: string; group: string; label: string; swatch: string }[] = [...POLY_SETS, ...RASTER_SETS, ...VECTOR_SETS];

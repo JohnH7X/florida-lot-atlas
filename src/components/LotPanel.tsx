@@ -16,6 +16,8 @@ import { lakeUtilitiesAt, type LakeUtilities } from '../lib/lakeCounty';
 import { ruralUtilitiesAt, type RuralUtilities } from '../lib/ruralFl';
 import { manateeUtilitiesAt, type ManateeUtilities } from '../lib/manatee';
 import { volusiaMartinUtilitiesAt, VO_TYPE_LABEL, type VolusiaMartinUtilities } from '../lib/volusiaMartin';
+import { panhandleUtilitiesAt, type PanhandleUtilities } from '../lib/panhandle';
+import { stJohnsClayUtilitiesAt, type StJohnsClayUtilities } from '../lib/stJohnsClay';
 import { sarasotaUtilitiesAt, type SarasotaUtilities } from '../lib/sarasota';
 import { polkOsceolaUtilitiesAt, type PolkOsceolaUtilities } from '../lib/polkOsceola';
 import { tampaBayUtilitiesAt, type TampaBayUtilities } from '../lib/tampaBay';
@@ -53,7 +55,8 @@ interface Props {
 }
 
 /** Everything about one selected parcel, in a single card. */
-const fmtLine = (l: { feet: number; size: number | null; material: string }) => `${l.feet < 1 ? 'Touches the lot' : `${Math.round(l.feet)} ft`}${l.size ? ` · ${l.size} in` : ''}${l.material ? ` ${l.material}` : ''}`;
+const realMaterial = (m: string) => (m && !/^(\d+|unk|unknown|other|oth)$/i.test(m) ? m : '');
+const fmtLine = (l: { feet: number; size: number | null; material: string; kind?: string }) => `${l.feet < 1 ? 'Touches the lot' : `${Math.round(l.feet)} ft`}${l.size ? ` · ${l.size} in` : ''}${realMaterial(l.material) ? ` ${realMaterial(l.material)}` : ''}${l.kind ? ` · ${l.kind}` : ''}`;
 export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDetails, zoneText, zoneGrid, onReport, onClose }: Props) {
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [copied, setCopied] = useState(false);
@@ -122,8 +125,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
   const [rf, setRf] = useState<RuralUtilities | null>(null);
   const [mte, setMte] = useState<ManateeUtilities | null>(null);
   const [vm, setVm] = useState<VolusiaMartinUtilities | null>(null);
+  const [ph, setPh] = useState<PanhandleUtilities | null>(null);
+  const [sjc, setSjc] = useState<StJohnsClayUtilities | null>(null);
   useEffect(() => {
-    let active = true; setCo(null); setHi(null); setLk(null); setRf(null); setMte(null); setVm(null);
+    let active = true; setCo(null); setHi(null); setLk(null); setRf(null); setMte(null); setVm(null); setPh(null); setSjc(null);
+    void panhandleUtilitiesAt(lot).then(r => { if (active) setPh(r); }).catch(() => undefined);
+    void stJohnsClayUtilitiesAt(lot).then(r => { if (active) setSjc(r); }).catch(() => undefined);
     void manateeUtilitiesAt(lot).then(r => { if (active) setMte(r); }).catch(() => undefined);
     void volusiaMartinUtilitiesAt(lot).then(r => { if (active) setVm(r); }).catch(() => undefined);
     void ruralUtilitiesAt(lot).then(r => { if (active) setRf(r); }).catch(() => undefined);
@@ -465,6 +472,36 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
             {rf.msbu && <li className="q"><span>Assessment district</span><b>{rf.msbu} · extra assessments may apply</b></li>}
           </ul>
           <p className="detail-foot">{rf.region.label} publishes {rf.region.id === 'ir' ? 'septic-to-sewer projects and, for the City of Vero Beach, sewer-service parcels and STEP sewer mains, but no county water or sewer pipe maps' : rf.region.id === 'pu' ? 'water mains only for the Palatka area, and no sewer maps' : rf.region.id === 'hg' ? 'assessment districts only, and no utility maps' : 'no utility maps that a browser can use'}. Water system areas come from the EPA and water-district datasets and are approximate; an area does not mean a line reaches the lot. Where nothing is mapped, wells and septic are common. See the Health Department block for sewer or septic status, and confirm availability and charges with the utility. Sources: EPA water system areas, St. Johns River WMD, Indian River County, City of Vero Beach, Putnam County GIS, Hendry County GIS.</p>
+        </div>}
+        {ph && <div className="pb-util">
+          <b>{ph.region.label} utilities</b>
+          <ul>
+            {ph.waterProvider && <li className="q"><span>{ph.region.id === 'bay' ? 'Exclusive utility service area' : ph.region.id === 'escambia' ? 'Water franchise (ECUA map)' : 'Water franchise (nearest hydrant)'}</span><b>{ph.waterProvider}</b></li>}
+            {ph.sewerProvider && <li className="q"><span>Sewer franchise</span><b>{ph.sewerProvider.name}{ph.sewerProvider.phone ? ` · ${ph.sewerProvider.phone}` : ''}</b></li>}
+            {ph.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{ph.epa.name}{ph.epa.population ? ` · serves about ${ph.epa.population.toLocaleString()}` : ''}</b></li>}
+            {!ph.epa && !ph.waterProvider && <li className="q"><span>Public water system</span><b>None mapped here (wells are likely)</b></li>}
+            {ph.region.id === 'bay' && <li className={ph.waterMain && ph.waterMain.feet <= 30 ? 'ok' : 'q'}><span>Water main</span><b>{ph.waterMain ? fmtLine(ph.waterMain) : 'None mapped within about 500 ft'}</b></li>}
+            {(ph.region.id === 'bay' || ph.sewerMain) && <li className={ph.sewerMain && ph.sewerMain.feet <= 30 ? 'ok' : 'q'}><span>Sewer main</span><b>{ph.sewerMain ? fmtLine(ph.sewerMain) : 'None mapped within about 500 ft'}</b></li>}
+            {['bay', 'escambia', 'santarosa'].includes(ph.region.id) && <li className="q"><span>Nearest fire hydrant</span><b>{ph.hydrant ? `${ph.hydrant.feet < 1 ? 'On the lot' : `${Math.round(ph.hydrant.feet)} ft`}${ph.hydrant.owner ? ` · ${ph.hydrant.owner}` : ''}` : 'None within about 500 ft'}</b></li>}
+            {ph.sewerProject && <li className="q"><span>ECUA sewer expansion project</span><b>{ph.sewerProject.name} · {ph.sewerProject.status}{ph.sewerProject.year ? ` · ${ph.sewerProject.year}` : ''}</b></li>}
+            {ph.septicPermit && <li className="q"><span>Septic permit on record</span><b>Health Department septic permit at this spot · sewer available when permitted: {ph.septicPermit.sewerAvailable.toLowerCase()}</b></li>}
+          </ul>
+          <p className="detail-foot">{ph.region.id === 'bay' ? 'Bay County GIS publishes the county, Callaway, Lynn Haven, Parker, Springfield and Panama City Beach water and sewer lines, each tagged with its owner; the City of Panama City’s own mains are not in it, so “none mapped” there does not mean no pipe. The service area is the county’s exclusive-provider map. Septic permits come from the Health Department’s watershed septic list.' : ph.region.id === 'escambia' ? 'Emerald Coast Utilities Authority publishes water franchise areas, its sewer expansion projects and hydrants, but no pipe maps. “No service” franchise areas rely on wells.' : ph.region.id === 'santarosa' ? 'Santa Rosa County publishes sewer franchise areas and county-wide hydrants tagged with the water franchise; sewer mains come from Pace Water System and the City of Gulf Breeze only. Holley-Navarre, Milton and other utilities’ lines are not usable.' : `${ph.region.label} publishes no utility layers this atlas can use${ph.region.id === 'okaloosa' ? ' (Okaloosa’s water network and service-area services were down or not started when tested)' : ''}, so only the EPA water system is shown.`} A main or franchise nearby does not mean a connection is allowed or paid for. See the Health Department block for sewer or septic status, and confirm availability and charges with the utility. Sources: {ph.region.id === 'bay' ? 'Bay County GIS, ' : ph.region.id === 'escambia' ? 'ECUA, ' : ph.region.id === 'santarosa' ? 'Santa Rosa County GIS, ' : ''}EPA water system areas.</p>
+        </div>}
+        {sjc && <div className="pb-util">
+          <b>{sjc.county === 'stjohns' ? 'St. Johns County utilities' : 'Clay County utilities'}</b>
+          <ul>
+            {sjc.zone && <li className="q"><span>Utility zone</span><b>{sjc.zone.name}{sjc.zone.phone ? ` · ${sjc.zone.phone}` : ''}</b></li>}
+            {sjc.county === 'stjohns' && !sjc.zone && <li className="q"><span>Utility zone</span><b>Not in a mapped utility zone (wells and septic are common)</b></li>}
+            {sjc.epa && <li className="q"><span>Public water system (EPA, approximate)</span><b>{sjc.epa.name}{sjc.epa.population ? ` · serves about ${sjc.epa.population.toLocaleString()}` : ''}</b></li>}
+            {sjc.county === 'clay' && !sjc.epa && <li className="q"><span>Public water system</span><b>None mapped here (wells are likely)</b></li>}
+            {sjc.staugustine && <>
+              <li className="q"><span>City of St. Augustine</span><b>{sjc.staugustine.inArea ? 'Inside the city’s utility service area' : 'Outside the city’s utility service area'}</b></li>
+              <li className={sjc.staugustine.sewerMain && sjc.staugustine.sewerMain.feet <= 30 ? 'ok' : 'q'}><span>City sewer main</span><b>{sjc.staugustine.sewerMain ? fmtLine(sjc.staugustine.sewerMain) : 'None mapped within about 500 ft'}</b></li>
+            </>}
+            {sjc.county === 'stjohns' && <li className="q"><span>Nearest fire hydrant</span><b>{sjc.hydrant ? `${sjc.hydrant.feet < 1 ? 'On the lot' : `${Math.round(sjc.hydrant.feet)} ft`}${sjc.hydrant.owner ? ` · ${sjc.hydrant.owner}` : ''}` : 'None within about 500 ft'}</b></li>}
+          </ul>
+          <p className="detail-foot">{sjc.county === 'stjohns' ? 'St. Johns County GIS publishes the utility zones (which utility serves where) and fire hydrants, but the county Utility Department’s pipe network is not public; the City of St. Augustine publishes its sewer mains. A zone does not mean a line reaches the lot.' : 'Clay County Utility Authority publishes no maps a browser can use, so only the EPA water system is shown; it is approximate and does not mean a line reaches the lot.'} See the Health Department block for sewer or septic status, and confirm availability and charges with the utility. Sources: {sjc.county === 'stjohns' ? 'St. Johns County GIS, City of St. Augustine, ' : ''}EPA water system areas.</p>
         </div>}
         {lk && <div className="pb-util">
           <b>Lake County utilities</b>
