@@ -27,7 +27,7 @@ import { useMyPins } from './lib/myPins';
 import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
 import { territoryAt } from './lib/territory';
 import { useDrag } from './lib/useDrag';
-import { findLot, lotAtPoint, lotCenter, normalizeLot, pinParcelAt, streetViewUrl, type LotFeature } from './lib/lots';
+import { findLot, lotAtPoint, lotByParcel, lotCenter, lotPinPoint, normalizeLot, pinParcelAt, streetViewUrl, type LotFeature } from './lib/lots';
 import { FAMILIES, type Metadata, type Pin, type SearchResult, type ViewState, type Zone } from './lib/types';
 
 const numberFormat = new Intl.NumberFormat('en-US');
@@ -103,17 +103,18 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem('atlas-hide-transfers', hideTransfers ? '1' : '0'); } catch { /* ignore */ } }, [hideTransfers]);
   const [activeMine, setActiveMine] = useState<string | null>(null);
   // Pins are stuck to parcels: a dropped or dragged pin moves to the centre of the parcel under it and remembers that parcel.
-  const parcelOf = (lot: LotFeature) => { const pr = lot.properties as Record<string, unknown>; return { parcel: `${pr.CO_NO ?? ''}-${pr.PARCEL_ID ?? ''}`, address: String(pr.PHY_ADDR1 || pr.LABEL || '').trim() }; };
+  const parcelOf = (lot: LotFeature) => { const pr = lot.properties as Record<string, unknown>; return { parcel: `${pr.CO_NO ?? ''}-${pr.PARCEL_ID ?? ''}`, address: String(pr.PHY_ADDR1 || pr.LABEL || '').trim(), fit: 1 }; };
   async function dropPin(lng: number, lat: number) {
     let at: [number, number] = [lng, lat], on: { parcel: string; address: string } | undefined;
-    try { const lot = await pinParcelAt([lng, lat]); const c = lot && lotCenter(lot); if (lot && c) { at = c; on = parcelOf(lot); } } catch { /* no parcel here: keep the clicked spot */ }
+    try { const lot = await pinParcelAt([lng, lat]); const c = lot && lotPinPoint(lot); if (lot && c) { at = c; on = parcelOf(lot); } } catch { /* no parcel here: keep the clicked spot */ }
     setActiveMine(mine.add(at[0], at[1], on?.address || '', on)); setRailOpen(true);
   }
   // Pins saved before pins stuck to parcels: snap each one (once) to the parcel under it, a few at a time. "-" marks a pin
   // with no parcel nearby so it isn't looked up again on every visit. Edits sync to the DRE cloud like any other change.
   const snapping = useRef(new Set<string>());
   useEffect(() => {
-    const todo = mine.pins.filter(p => !p.parcel && !snapping.current.has(p.id));
+    // Also pins already on a parcel but placed at its box centre, which can fall outside an irregular lot: move them inside.
+    const todo = mine.pins.filter(p => (!p.parcel || (p.parcel !== '-' && !p.fit)) && !snapping.current.has(p.id));
     if (!todo.length) return;
     for (const p of todo) snapping.current.add(p.id);
     let i = 0;
@@ -121,11 +122,16 @@ export default function App() {
       while (i < todo.length) {
         const p = todo[i++];
         try {
-          const lot = await pinParcelAt([p.lng, p.lat]); const c = lot && lotCenter(lot);
+          if (p.parcel && p.parcel !== '-') {
+            const own = await lotByParcel(p.parcel); const c = own && lotPinPoint(own);
+            mine.update(p.id, c ? { lng: c[0], lat: c[1], fit: 1 } : { fit: 1 });
+            continue;
+          }
+          const lot = await pinParcelAt([p.lng, p.lat]); const c = lot && lotPinPoint(lot);
           if (lot && c) {
             const on = parcelOf(lot);
             const auto = !p.label || /^Pin \d+$/.test(p.label);
-            mine.update(p.id, { lng: c[0], lat: c[1], ...on, ...(auto && on.address ? { label: on.address } : {}) });
+            mine.update(p.id, { lng: c[0], lat: c[1], ...on, fit: 1, ...(auto && on.address ? { label: on.address } : {}) });
           } else mine.update(p.id, { parcel: '-' });
         } catch { snapping.current.delete(p.id); /* network trouble: try again next time */ }
       }
@@ -135,12 +141,12 @@ export default function App() {
   async function movePin(id: string, lng: number, lat: number) {
     const old = mine.pins.find(p => p.id === id); if (!old) return;
     try {
-      const lot = await pinParcelAt([lng, lat]); const c = lot && lotCenter(lot);
+      const lot = await pinParcelAt([lng, lat]); const c = lot && lotPinPoint(lot);
       if (lot && c) {
         const on = parcelOf(lot);
         // Keep a name you typed; replace one that was just the old parcel's address or "Pin N".
         const auto = !old.label || /^Pin \d+$/.test(old.label) || old.label === old.address;
-        mine.update(id, { lng: c[0], lat: c[1], ...on, ...(auto && on.address ? { label: on.address } : {}) });
+        mine.update(id, { lng: c[0], lat: c[1], ...on, fit: 1, ...(auto && on.address ? { label: on.address } : {}) });
         return;
       }
     } catch { /* lookup failed: put it back */ }
@@ -402,7 +408,7 @@ export default function App() {
         </section>
         <MyPinsPanel pins={mine.pins} placing={placing} activeId={activeMine} fileName="my-florida-pins.csv" canPinParcel={!!selectedLot && !!lotCenter(selectedLot)} hideTransfers={hideTransfers} onToggleTransfers={() => setHideTransfers(v => !v)}
           onTogglePlacing={() => setPlacing(v => !v)}
-          onPinParcel={() => { const c = selectedLot && lotCenter(selectedLot); if (!c || !selectedLot) return; const on = parcelOf(selectedLot); setActiveMine(mine.add(c[0], c[1], on.address || 'Parcel', on)); }}
+          onPinParcel={() => { const c = selectedLot && lotPinPoint(selectedLot); if (!c || !selectedLot) return; const on = parcelOf(selectedLot); setActiveMine(mine.add(c[0], c[1], on.address || 'Parcel', on)); }}
           onSelect={setActiveMine} onUpdate={mine.update} onRemove={mine.remove} onClear={() => { mine.clear(); setActiveMine(null); }}
           cloud={mine.cloud} onConnect={mine.connect} onDisconnect={mine.disconnect} onFly={pin => setFocus({ coordinates: [pin.lng, pin.lat], zoom: Math.max(view.zoom, 16.5), serial: Date.now() })}
           onOpenParcel={pin => void lotAt([pin.lng, pin.lat])}/>

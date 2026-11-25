@@ -33,6 +33,13 @@ export function lotsInBounds(bounds: [number, number, number, number], signal?: 
     returnGeometry: 'true', outFields: LIGHT, resultRecordCount: '2000' }, signal);
 }
 
+/** A parcel by its "<county no>-<parcel id>" key (as stored on pins). */
+export async function lotByParcel(key: string, signal?: AbortSignal): Promise<LotFeature | null> {
+  const m = key.match(/^(\d+)-(.+)$/); if (!m) return null;
+  const f = (await query({ where: `CO_NO = ${Number(m[1])} AND PARCEL_ID = '${m[2].replace(/'/g, "''")}'`, returnGeometry: 'true' }, signal)).features[0];
+  return f?.geometry ? f : null;
+}
+
 export async function findLot(input: string, signal?: AbortSignal): Promise<LotFeature | null> {
   const id = Number(input);
   if (!Number.isInteger(id)) return null;
@@ -319,6 +326,26 @@ export async function lotAtPoint([lng, lat]: [number, number], signal?: AbortSig
     return (px - t * dx) ** 2 + (py - t * dy) ** 2;
   })));
   return near.sort((x, y) => Number(matches(y)) - Number(matches(x)) || edge(x) - edge(y))[0] || exact[0] || null;
+}
+
+/** A point inside the parcel for a pin: the bounding-box centre when it falls inside the lot, otherwise the middle of the widest
+ *  stretch of lot along a few horizontal lines (L-shaped, curved and flag lots have their box centre outside the lot). */
+export function lotPinPoint(feature: LotFeature): [number, number] | null {
+  const c = lotCenter(feature); if (!c) return null;
+  const polys = polygons(feature);
+  if (!polys.length || inLot(c, polys)) return c;
+  const ys = polys.flatMap(p => p[0].map(q => q[1])), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  let best: { x: number; y: number; w: number } | null = null;
+  for (let k = 1; k < 12; k++) {
+    const y = y0 + (y1 - y0) * k / 12, xs: number[] = [];
+    for (const poly of polys) for (const ring of poly) for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if ((yi > y) !== (yj > y)) xs.push(xi + (y - yi) * (xj - xi) / (yj - yi));
+    }
+    xs.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < xs.length; i += 2) { const w = xs[i + 1] - xs[i]; if (!best || w > best.w) best = { x: (xs[i] + xs[i + 1]) / 2, y, w }; }
+  }
+  return best && inLot([best.x, best.y], polys) ? [best.x, best.y] : c;
 }
 
 /** The parcel a pin belongs to. Townhouse and condo lots sit on top of their community's common-area tract, so among parcels

@@ -247,7 +247,7 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .pin-row em{font-style:normal;color:#db2777;font-size:10px;flex:none}
 
 /* Numbered teardrop pins (point down) for properties sent from another app */
-.dre-tear-wrap{width:30px;height:38px;cursor:pointer}
+.dre-tear-wrap{width:30px;height:31px;cursor:pointer}
 .dre-tear{position:absolute;left:3px;top:2px;width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#2f5d4a;border:2px solid #fff;box-shadow:0 2px 6px #0006;padding:0;display:flex;align-items:center;justify-content:center}
 .dre-tear span{transform:rotate(45deg);color:#fff;font:700 11px/1 'DM Sans',sans-serif}
 .dre-tear.rated{background:#db2777}
@@ -289,11 +289,12 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .my-pin-edit input,.my-pin-edit select,.my-pin-edit textarea{width:100%;border:1px solid #dce1d5;border-radius:4px;background:#fff;padding:7px 8px;font-size:11px;color:#304234;font-family:inherit;resize:vertical}
 .my-pin-btns{display:flex;justify-content:space-between}
 .text-button.danger{color:#b4452d}
-.my-tear-wrap{width:30px;height:38px;cursor:grab;position:relative}
+/* The teardrop's point is 31px below the box top: the box ends there so MapLibre's bottom anchor is the exact tip (no drift when zooming). */
+.my-tear-wrap{width:30px;height:31px;cursor:grab;position:relative}
 .my-tear{position:absolute;left:3px;top:2px;width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px #0006;display:flex;align-items:center;justify-content:center}
 .my-tear span{width:8px;height:8px;border-radius:50%;background:#fff}
 .my-tear.active{outline:3px solid #ffd400;outline-offset:1px}
-.my-tear-label{position:absolute;top:40px;left:50%;transform:translateX(-50%);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;background:#fffffff0;border:1px solid #d9d2ea;border-radius:3px;padding:1px 5px;font-size:10px;color:#3b2a66;pointer-events:none}
+.my-tear-label{position:absolute;top:34px;left:50%;transform:translateX(-50%);white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;background:#fffffff0;border:1px solid #d9d2ea;border-radius:3px;padding:1px 5px;font-size:10px;color:#3b2a66;pointer-events:none}
 .map-wrap.placing .maplibregl-canvas{cursor:crosshair!important}
 
 .cloud-row{margin:8px 0 2px;font-size:10px;color:#6c7b66}
