@@ -102,6 +102,27 @@ export default function App() {
   const [hideTransfers, setHideTransfers] = useState(() => { try { return localStorage.getItem('atlas-hide-transfers') === '1'; } catch { return false; } });
   useEffect(() => { try { localStorage.setItem('atlas-hide-transfers', hideTransfers ? '1' : '0'); } catch { /* ignore */ } }, [hideTransfers]);
   const [activeMine, setActiveMine] = useState<string | null>(null);
+  // Pins are stuck to parcels: a dropped or dragged pin moves to the centre of the parcel under it and remembers that parcel.
+  const parcelOf = (lot: LotFeature) => { const pr = lot.properties as Record<string, unknown>; return { parcel: `${pr.CO_NO ?? ''}-${pr.PARCEL_ID ?? ''}`, address: String(pr.PHY_ADDR1 || pr.LABEL || '').trim() }; };
+  async function dropPin(lng: number, lat: number) {
+    let at: [number, number] = [lng, lat], on: { parcel: string; address: string } | undefined;
+    try { const lot = await lotAtPoint([lng, lat]); const c = lot && lotCenter(lot); if (lot && c) { at = c; on = parcelOf(lot); } } catch { /* no parcel here: keep the clicked spot */ }
+    setActiveMine(mine.add(at[0], at[1], on?.address || '', on)); setRailOpen(true);
+  }
+  async function movePin(id: string, lng: number, lat: number) {
+    const old = mine.pins.find(p => p.id === id); if (!old) return;
+    try {
+      const lot = await lotAtPoint([lng, lat]); const c = lot && lotCenter(lot);
+      if (lot && c) {
+        const on = parcelOf(lot);
+        // Keep a name you typed; replace one that was just the old parcel's address or "Pin N".
+        const auto = !old.label || /^Pin \d+$/.test(old.label) || old.label === old.address;
+        mine.update(id, { lng: c[0], lat: c[1], ...on, ...(auto && on.address ? { label: on.address } : {}) });
+        return;
+      }
+    } catch { /* lookup failed: put it back */ }
+    mine.update(id, { lng: old.lng, lat: old.lat }); // no parcel where it was dropped: back to its parcel
+  }
   useEffect(() => {
     if (!placing) return;
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setPlacing(false); };
@@ -322,7 +343,7 @@ export default function App() {
     </header>
     <main className="workspace">
       {metadata && <MapView polys={polysOn} hernando={hnOn ? ['areas'] : []} marion={mnOn ? ['areas'] : []} palmCoast={pcOn ? pcLayers : []} citrus={citOn ? citLayers : []} flwmi={fwOn ? fwLayers : []} northPort={npOn ? npLayers : []} charlotte={chOn ? chLayers : []} stLucie={pslOn ? pslLayers : []} lee={leeOn ? leeLayers : []} cocoaBeach={cbOn ? cbLayers : []} brevardUtil={buOn ? buLayers : []} melbourne={mbOn ? mbLayers : []} titusville={tvOn ? tvLayers : []} cocoa={cocoaOn ? cocoaLayers : []} palmBay={palmBayOn ? palmBayLayers : []} hideTransfers={hideTransfers} initial={initial} selected={selected} milieu={view.milieu} zoneFilter={view.zoneFilter} activityTypes={scopeTypes} visible={view.visible} opacity={opacity} focus={focus} addressCoordinates={addressCoordinates}
-        lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => { setActiveMine(mine.add(lng, lat)); setRailOpen(true); }} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => mine.update(id, { lng, lat })} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
+        lotsVisible={lotsVisible} selectedLot={selectedLot} myPins={mine.pins} activeMyPin={activeMine} placing={placing} onPlace={(lng, lat) => void dropPin(lng, lat)} onMyPinClick={id => { setActiveMine(id); setRailOpen(true); }} onMyPinMove={(id, lng, lat) => void movePin(id, lng, lat)} pins={pins} activePin={activePin} onPinClick={choosePin} placePins={!query && browse ? browseList.map(r => ({ id: r.id, title: r.title, coordinates: r.coordinates })) : undefined} placeFit={placeFit} onPlacePinClick={id => { const r = browseList.find(x => x.id === id); if (r) void choose(r); }} onLotClick={lot => void searchLot(lot)} onPointClick={c => void lotAt(c)}
         onSelect={code => { setView(current => ({ ...current, zone: code })); const z = zones.find(x => x.code === code); if (z && scope && zoneCity(z) !== scope) setScope(zoneCity(z)); }}
         onMove={position => setView(current => ({ ...current, ...position }))}/>}
       {error && <div className="fatal-error" role="alert">{error}<button onClick={() => window.location.reload()}>Reload map</button></div>}
@@ -358,7 +379,7 @@ export default function App() {
         </section>
         <MyPinsPanel pins={mine.pins} placing={placing} activeId={activeMine} fileName="my-florida-pins.csv" canPinParcel={!!selectedLot && !!lotCenter(selectedLot)} hideTransfers={hideTransfers} onToggleTransfers={() => setHideTransfers(v => !v)}
           onTogglePlacing={() => setPlacing(v => !v)}
-          onPinParcel={() => { const c = selectedLot && lotCenter(selectedLot); if (!c || !selectedLot) return; const pr = selectedLot.properties as Record<string, unknown>; setActiveMine(mine.add(c[0], c[1], String(pr.PHY_ADDR1 || pr.LABEL || '').trim() || 'Parcel')); }}
+          onPinParcel={() => { const c = selectedLot && lotCenter(selectedLot); if (!c || !selectedLot) return; const on = parcelOf(selectedLot); setActiveMine(mine.add(c[0], c[1], on.address || 'Parcel', on)); }}
           onSelect={setActiveMine} onUpdate={mine.update} onRemove={mine.remove} onClear={() => { mine.clear(); setActiveMine(null); }}
           cloud={mine.cloud} onConnect={mine.connect} onDisconnect={mine.disconnect} onFly={pin => setFocus({ coordinates: [pin.lng, pin.lat], zoom: Math.max(view.zoom, 16.5), serial: Date.now() })}
           onOpenParcel={pin => void lotAt([pin.lng, pin.lat])}/>

@@ -7,7 +7,8 @@ export const MY_PIN_STATUS: Record<MyPinStatus, { label: string; color: string }
   followup: { label: 'Follow up', color: '#e08a00' },
   pass: { label: 'Pass', color: '#8a8f87' },
 };
-export interface MyPin { id: string; lng: number; lat: number; label: string; note: string; status: MyPinStatus; created: number; updatedAt?: number }
+// A pin sits on a parcel: `parcel` is "<county no>-<parcel id>" and lng / lat the parcel's centre (older pins may have neither).
+export interface MyPin { id: string; lng: number; lat: number; label: string; note: string; status: MyPinStatus; created: number; updatedAt?: number; parcel?: string; address?: string }
 
 // ---- Optional cloud sync with the DRE backend (same "pins" list DRE uses) ----
 const CLOUD = 'https://dre-v5-jgarabedian.fly.dev';
@@ -21,9 +22,9 @@ export function useMyPins(storageKey: string) {
   const [pins, setPins] = useState<MyPin[]>(() => { try { const v = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } });
   const pinsRef = useRef(pins); pinsRef.current = pins;
   useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(pins)); } catch { /* storage blocked: pins last for this visit */ } }, [storageKey, pins]);
-  const add = useCallback((lng: number, lat: number, label = ''): string => {
+  const add = useCallback((lng: number, lat: number, label = '', on?: { parcel?: string; address?: string }): string => {
     const id = `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
-    setPins(list => [...list, { id, lng, lat, label: label || `Pin ${list.length + 1}`, note: '', status: 'research', created: Date.now(), updatedAt: Date.now() }]);
+    setPins(list => [...list, { id, lng, lat, label: label || `Pin ${list.length + 1}`, note: '', status: 'research', created: Date.now(), updatedAt: Date.now(), ...(on?.parcel ? on : {}) }]);
     return id;
   }, []);
   const update = useCallback((id: string, patch: Partial<MyPin>) => setPins(list => list.map(p => p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p)), []);
