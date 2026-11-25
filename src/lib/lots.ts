@@ -348,6 +348,9 @@ export function lotPinPoint(feature: LotFeature): [number, number] | null {
   return best && inLot([best.x, best.y], polys) ? [best.x, best.y] : c;
 }
 
+/** Is the point inside the lot drawing? */
+export const pointInLot = (feature: LotFeature, point: [number, number]) => inLot(point, polygons(feature));
+
 /** The parcel a pin belongs to. Townhouse and condo lots sit on top of their community's common-area tract, so among parcels
  *  within ~4 m of the point the smallest one wins (the unit, not the master tract). Otherwise the usual parcel-at-point lookup. */
 export async function pinParcelAt([lng, lat]: [number, number], signal?: AbortSignal): Promise<LotFeature | null> {
@@ -365,7 +368,10 @@ export async function pinParcelAt([lng, lat]: [number, number], signal?: AbortSi
     })))) * M;
   };
   const close = near.map(f => ({ f, d: metres(f), a: lotArea(f) ?? Infinity })).filter(x => x.d <= 4).sort((x, y) => x.a - y.a);
-  return close[0]?.f || lotAtPoint([lng, lat], signal);
+  // The parcel you clicked wins; a smaller one within 4 m only when the clicked one is a big common tract (20× its size or more).
+  const inside = close.filter(x => x.d === 0), smallest = close[0];
+  const pick = inside[0] && !(smallest && smallest.d > 0 && inside[0].a >= smallest.a * 20) ? inside[0] : smallest;
+  return pick?.f || lotAtPoint([lng, lat], signal);
 }
 
 export interface LotEdge { from: [number, number]; to: [number, number]; mid: [number, number]; length: number }

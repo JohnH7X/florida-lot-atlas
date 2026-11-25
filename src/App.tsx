@@ -27,7 +27,7 @@ import { useMyPins } from './lib/myPins';
 import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
 import { territoryAt } from './lib/territory';
 import { useDrag } from './lib/useDrag';
-import { findLot, lotAtPoint, lotByParcel, lotCenter, lotPinPoint, normalizeLot, pinParcelAt, streetViewUrl, type LotFeature } from './lib/lots';
+import { findLot, lotAtPoint, lotByParcel, lotCenter, lotPinPoint, normalizeLot, pinParcelAt, pointInLot, streetViewUrl, type LotFeature } from './lib/lots';
 import { FAMILIES, type Metadata, type Pin, type SearchResult, type ViewState, type Zone } from './lib/types';
 
 const numberFormat = new Intl.NumberFormat('en-US');
@@ -106,7 +106,11 @@ export default function App() {
   const parcelOf = (lot: LotFeature) => { const pr = lot.properties as Record<string, unknown>; return { parcel: `${pr.CO_NO ?? ''}-${pr.PARCEL_ID ?? ''}`, address: String(pr.PHY_ADDR1 || pr.LABEL || '').trim(), fit: 1 }; };
   async function dropPin(lng: number, lat: number) {
     let at: [number, number] = [lng, lat], on: { parcel: string; address: string } | undefined;
-    try { const lot = await pinParcelAt([lng, lat]); const c = lot && lotPinPoint(lot); if (lot && c) { at = c; on = parcelOf(lot); } } catch { /* no parcel here: keep the clicked spot */ }
+    try {
+      // A click inside the highlighted lot pins that lot; otherwise the parcel under the click.
+      const lot = selectedLot && pointInLot(selectedLot, [lng, lat]) ? selectedLot : await pinParcelAt([lng, lat]);
+      const c = lot && lotPinPoint(lot); if (lot && c) { at = c; on = parcelOf(lot); }
+    } catch { /* no parcel here: keep the clicked spot */ }
     setActiveMine(mine.add(at[0], at[1], on?.address || '', on)); setRailOpen(true);
   }
   // Pins saved before pins stuck to parcels: snap each one (once) to the parcel under it, a few at a time. "-" marks a pin

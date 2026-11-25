@@ -290,7 +290,8 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .my-pin-btns{display:flex;justify-content:space-between}
 .text-button.danger{color:#b4452d}
 /* The teardrop's point is 31px below the box top: the box ends there so MapLibre's bottom anchor is the exact tip (no drift when zooming). */
-.my-tear-wrap{width:30px;height:31px;cursor:grab;position:relative}
+/* No position rule here: MapLibre positions markers absolutely; "relative" would stack each pin below the previous one. */
+.my-tear-wrap{width:30px;height:31px;cursor:grab}
 .my-tear{position:absolute;left:3px;top:2px;width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px #0006;display:flex;align-items:center;justify-content:center}
 .my-tear span{width:8px;height:8px;border-radius:50%;background:#fff}
 .my-tear.active{outline:3px solid #ffd400;outline-offset:1px}
