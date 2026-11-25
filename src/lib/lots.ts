@@ -321,6 +321,26 @@ export async function lotAtPoint([lng, lat]: [number, number], signal?: AbortSig
   return near.sort((x, y) => Number(matches(y)) - Number(matches(x)) || edge(x) - edge(y))[0] || exact[0] || null;
 }
 
+/** The parcel a pin belongs to. Townhouse and condo lots sit on top of their community's common-area tract, so among parcels
+ *  within ~4 m of the point the smallest one wins (the unit, not the master tract). Otherwise the usual parcel-at-point lookup. */
+export async function pinParcelAt([lng, lat]: [number, number], signal?: AbortSignal): Promise<LotFeature | null> {
+  const r = 0.00012; // ~13 m
+  const near = (await query({ geometry: [lng - r, lat - r * 0.9, lng + r, lat + r * 0.9].join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326',
+    spatialRel: 'esriSpatialRelIntersects', returnGeometry: 'true' }, signal)).features.filter(f => f.geometry);
+  const kx = Math.cos(lat * Math.PI / 180), M = 111320; // metres per degree of latitude
+  const metres = (f: LotFeature) => {
+    const polys = polygons(f);
+    if (inLot([lng, lat], polys)) return 0;
+    return Math.sqrt(Math.min(...polys.flatMap(poly => poly[0].slice(1).map((b, i) => {
+      const a = poly[0][i], dx = (b[0] - a[0]) * kx, dy = b[1] - a[1], px = (lng - a[0]) * kx, py = lat - a[1];
+      const t = Math.max(0, Math.min(1, (px * dx + py * dy) / (dx * dx + dy * dy || 1)));
+      return (px - t * dx) ** 2 + (py - t * dy) ** 2;
+    })))) * M;
+  };
+  const close = near.map(f => ({ f, d: metres(f), a: lotArea(f) ?? Infinity })).filter(x => x.d <= 4).sort((x, y) => x.a - y.a);
+  return close[0]?.f || lotAtPoint([lng, lat], signal);
+}
+
 export interface LotEdge { from: [number, number]; to: [number, number]; mid: [number, number]; length: number }
 const R_EARTH = 6371008.8;
 function dist([x1, y1]: Position, [x2, y2]: Position): number {

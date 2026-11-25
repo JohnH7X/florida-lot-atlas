@@ -27,7 +27,7 @@ import { useMyPins } from './lib/myPins';
 import { BROWSE_CHIPS, browseCategory, searchAtlas, type BrowseChip } from './lib/search';
 import { territoryAt } from './lib/territory';
 import { useDrag } from './lib/useDrag';
-import { findLot, lotAtPoint, lotCenter, normalizeLot, streetViewUrl, type LotFeature } from './lib/lots';
+import { findLot, lotAtPoint, lotCenter, normalizeLot, pinParcelAt, streetViewUrl, type LotFeature } from './lib/lots';
 import { FAMILIES, type Metadata, type Pin, type SearchResult, type ViewState, type Zone } from './lib/types';
 
 const numberFormat = new Intl.NumberFormat('en-US');
@@ -106,13 +106,36 @@ export default function App() {
   const parcelOf = (lot: LotFeature) => { const pr = lot.properties as Record<string, unknown>; return { parcel: `${pr.CO_NO ?? ''}-${pr.PARCEL_ID ?? ''}`, address: String(pr.PHY_ADDR1 || pr.LABEL || '').trim() }; };
   async function dropPin(lng: number, lat: number) {
     let at: [number, number] = [lng, lat], on: { parcel: string; address: string } | undefined;
-    try { const lot = await lotAtPoint([lng, lat]); const c = lot && lotCenter(lot); if (lot && c) { at = c; on = parcelOf(lot); } } catch { /* no parcel here: keep the clicked spot */ }
+    try { const lot = await pinParcelAt([lng, lat]); const c = lot && lotCenter(lot); if (lot && c) { at = c; on = parcelOf(lot); } } catch { /* no parcel here: keep the clicked spot */ }
     setActiveMine(mine.add(at[0], at[1], on?.address || '', on)); setRailOpen(true);
   }
+  // Pins saved before pins stuck to parcels: snap each one (once) to the parcel under it, a few at a time. "-" marks a pin
+  // with no parcel nearby so it isn't looked up again on every visit. Edits sync to the DRE cloud like any other change.
+  const snapping = useRef(new Set<string>());
+  useEffect(() => {
+    const todo = mine.pins.filter(p => !p.parcel && !snapping.current.has(p.id));
+    if (!todo.length) return;
+    for (const p of todo) snapping.current.add(p.id);
+    let i = 0;
+    const worker = async () => {
+      while (i < todo.length) {
+        const p = todo[i++];
+        try {
+          const lot = await pinParcelAt([p.lng, p.lat]); const c = lot && lotCenter(lot);
+          if (lot && c) {
+            const on = parcelOf(lot);
+            const auto = !p.label || /^Pin \d+$/.test(p.label);
+            mine.update(p.id, { lng: c[0], lat: c[1], ...on, ...(auto && on.address ? { label: on.address } : {}) });
+          } else mine.update(p.id, { parcel: '-' });
+        } catch { snapping.current.delete(p.id); /* network trouble: try again next time */ }
+      }
+    };
+    void Promise.all([worker(), worker(), worker()]);
+  }, [mine.pins]); // eslint-disable-line react-hooks/exhaustive-deps
   async function movePin(id: string, lng: number, lat: number) {
     const old = mine.pins.find(p => p.id === id); if (!old) return;
     try {
-      const lot = await lotAtPoint([lng, lat]); const c = lot && lotCenter(lot);
+      const lot = await pinParcelAt([lng, lat]); const c = lot && lotCenter(lot);
       if (lot && c) {
         const on = parcelOf(lot);
         // Keep a name you typed; replace one that was just the old parcel's address or "Pin N".

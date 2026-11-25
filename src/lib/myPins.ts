@@ -7,7 +7,7 @@ export const MY_PIN_STATUS: Record<MyPinStatus, { label: string; color: string }
   followup: { label: 'Follow up', color: '#e08a00' },
   pass: { label: 'Pass', color: '#8a8f87' },
 };
-// A pin sits on a parcel: `parcel` is "<county no>-<parcel id>" and lng / lat the parcel's centre (older pins may have neither).
+// A pin sits on a parcel: `parcel` is "<county no>-<parcel id>" and lng / lat the parcel's centre ("-": no parcel nearby).
 export interface MyPin { id: string; lng: number; lat: number; label: string; note: string; status: MyPinStatus; created: number; updatedAt?: number; parcel?: string; address?: string }
 
 // ---- Optional cloud sync with the DRE backend (same "pins" list DRE uses) ----
