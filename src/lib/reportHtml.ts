@@ -1,6 +1,7 @@
 import { FT_PER_M, SQFT_PER_M2 } from './lots';
 import { satelliteFrame, type PropertyFile, type Settings } from './files';
 import { DECLARATION_TOPICS, MANDATE_FIELDS, PREOFFER_CHECKS, LISTING_FIELDS } from './checklists';
+import garabedianLogoSvg from '../../public/garabedian-ai-logo.svg?raw';
 
 // Printable HTML documents for a property file: the branded report and the worksheets.
 
@@ -12,13 +13,16 @@ const area = (m2: number | null | undefined) => m2 == null ? '—' : `${n.format
 const len = (m: number | null | undefined) => m == null ? '—' : `${(m * FT_PER_M).toFixed(1)} ft (${m.toFixed(1)} m)`;
 const date = (iso: string) => new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
+// The Garabedian AI mark, inlined so it also shows in a saved or downloaded copy of the report.
+const GARABEDIAN_LOGO = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(garabedianLogoSvg)}`;
+
 function shell(title: string, s: Settings, body: string) {
   const c = esc(s.color || '#1d3924');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
   @page{size:letter;margin:16mm}*{box-sizing:border-box}body{margin:0;font:13px/1.5 'Helvetica Neue',Arial,sans-serif;color:#1d2420;background:#fff}
   .page{max-width:780px;margin:0 auto;padding:28px}
   .brand{display:flex;align-items:center;gap:16px;border-bottom:3px solid ${c};padding-bottom:14px;margin-bottom:20px}
-  .brand img{max-height:56px;max-width:160px}.brand .who{margin-left:auto;text-align:right;font-size:12px;color:#55605a}.brand .who b{display:block;color:#1d2420;font-size:14px}
+  .brand img{max-height:56px;max-width:160px}.brand .maker{margin-left:auto;line-height:0}.brand .maker img{width:64px;height:64px;max-width:none;max-height:none}
   h1{font-size:24px;margin:0 0 2px}h2{font-size:15px;color:${c};text-transform:uppercase;letter-spacing:.06em;margin:26px 0 8px;border-bottom:1px solid #dfe5dc;padding-bottom:4px;break-after:avoid}
   .sub{color:#55605a;margin:0}table{width:100%;border-collapse:collapse}td,th{padding:6px 8px;border-bottom:1px solid #eef1ec;text-align:left;vertical-align:top}th{width:38%;color:#55605a;font-weight:500}
   .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}.hero div{background:#f4f7f2;border-radius:8px;padding:10px 12px}.hero span{display:block;font-size:11px;color:#55605a;text-transform:uppercase;letter-spacing:.05em}.hero b{font-size:18px}
@@ -30,7 +34,7 @@ function shell(title: string, s: Settings, body: string) {
   @media print{.noprint{display:none}.page{padding:0}}
   </style></head><body><div class="page"><div class="noprint"><button onclick="print()">Print / Save as PDF</button></div>
   <div class="brand">${s.logo ? `<img src="${esc(s.logo)}" alt="">` : ''}<div><b style="font-size:16px">${esc(s.agency || 'Property file')}</b></div>
-  <div class="who">${s.broker ? `<b>${esc(s.broker)}</b>${esc(s.title)}` : ''}${s.licence ? `<br>Licence ${esc(s.licence)}` : ''}${s.phone ? `<br>${esc(s.phone)}` : ''}${s.email ? ` · ${esc(s.email)}` : ''}</div></div>
+  <a class="maker" href="https://garabedian.ai" target="_blank" rel="noreferrer" title="Garabedian AI"><img src="${GARABEDIAN_LOGO}" alt="Garabedian AI"></a></div>
   ${body}</div></body></html>`;
 }
 
