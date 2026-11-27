@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowUpRight, Check, Copy, Download, FileText, FolderOpen, Paperclip, Printer, Settings as Gear, Trash2, Upload, X } from 'lucide-react';
-import { DEFAULT_SETTINGS, STATUSES, deleteDoc, getDoc, loadFiles, loadSettings, log, newFile, now, putDoc, saveFiles, saveSettings, uid, type Answer, type DocMeta, type FileStatus, type LotSnapshot, type PropertyFile, type Settings } from '../lib/files';
-import { DECLARATION_TOPICS, DOC_CATEGORIES, LISTING_FIELDS, MANDATE_FIELDS, PREOFFER_CHECKS, preofferFindings, type Field } from '../lib/checklists';
-import { declarationHtml, listingText, mandateHtml, reportHtml } from '../lib/reportHtml';
+import { ArrowLeft, ArrowUpRight, Download, FileText, FolderOpen, Paperclip, Printer, Settings as Gear, Trash2, Upload, X } from 'lucide-react';
+import { DEFAULT_SETTINGS, STATUSES, deleteDoc, getDoc, loadFiles, loadSettings, log, newFile, now, putDoc, saveFiles, saveSettings, uid, type DocMeta, type FileStatus, type LotSnapshot, type PropertyFile, type Settings } from '../lib/files';
+import { DOC_CATEGORIES, PREOFFER_CHECKS, preofferFindings } from '../lib/checklists';
+import { reportHtml } from '../lib/reportHtml';
 
 interface Props { pending: LotSnapshot | null; onClose: () => void; onShowLot: (s: LotSnapshot) => void }
 
-const TABS = ['Report', 'Agreement', 'Disclosure', 'Pre-offer', 'Documents', 'Listing', 'Supervision', 'History'] as const;
+// Internal use only: the broker tabs (Agreement, Disclosure, Listing, Supervision) were removed on 2026-11-26.
+const TABS = ['Report', 'Pre-offer', 'Documents', 'History'] as const;
 type Tab = typeof TABS[number];
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const kb = (b: number) => b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.ceil(b / 1e3)} KB`;
@@ -106,14 +107,8 @@ function FileView({ file, settings, update, onShowLot, onDelete }: { file: Prope
     {tab === 'Report' && <DocPreview html={reportHtml(file, settings)} onPrint={() => update(f => log({ ...f, reports: f.reports + 1 }, 'Property report generated'))} intro={<>
       A branded report built from the tax roll, sales and the parcel map, section by section, with the status of your checks.
       <label className="rp-notes">Broker notes printed in the report<textarea value={file.notes} onChange={e => update(f => ({ ...f, notes: e.target.value }))}/></label></>}/>}
-    {tab === 'Agreement' && <><Worksheet fields={MANDATE_FIELDS.filter(x => !x.side || x.side === file.side)} values={file.mandate} onChange={(k, v) => update(f => ({ ...f, mandate: { ...f.mandate, [k]: v } }))}
-      intro={`Collect what you need for the ${file.side === 'listing' ? 'listing agreement' : 'buyer agency agreement'} and the Florida brokerage relationship disclosure. Property details come from the file. Complete and sign the official form.`}/>
-      <DocPreview html={mandateHtml(file, settings)} onPrint={() => update(f => log(f, 'Agreement worksheet printed'))} compact/></>}
-    {tab === 'Disclosure' && <Declaration file={file} update={update}/>}
     {tab === 'Pre-offer' && <Checklist file={file} update={update}/>}
     {tab === 'Documents' && <Documents file={file} update={update}/>}
-    {tab === 'Listing' && <Listing file={file} update={update}/>}
-    {tab === 'Supervision' && <Supervision file={file} settings={settings} update={update}/>}
     {tab === 'History' && <section className="rp-card"><h3>Activity history</h3><ul className="rp-history">{file.history.map((h, i) => <li key={i}><time>{when(h.at)}</time><span>{h.text}</span></li>)}</ul></section>}
   </div>;
 }
@@ -126,27 +121,6 @@ function DocPreview({ html, onPrint, intro, compact }: { html: string; onPrint: 
       <button className="rp-ghost" onClick={() => { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); } }}>Open in new tab <ArrowUpRight size={13}/></button></div>
     <iframe ref={frame} className={`rp-frame${compact ? ' compact' : ''}`} title="Document preview" srcDoc={html}/>
   </section>;
-}
-
-function Worksheet({ fields, values, onChange, intro }: { fields: Field[]; values: Record<string, string>; onChange: (k: string, v: string) => void; intro: string }) {
-  return <section className="rp-card"><p className="rp-intro">{intro}</p><div className="rp-form">{fields.map(x => <label key={x.key} className={x.type === 'area' ? 'wide' : ''}>{x.label}
-    {x.type === 'area' ? <textarea value={values[x.key] || ''} onChange={e => onChange(x.key, e.target.value)}/> : <input type={x.type === 'date' ? 'date' : 'text'} inputMode={x.type === 'number' ? 'decimal' : undefined} value={values[x.key] || ''} onChange={e => onChange(x.key, e.target.value)}/>}
-    {x.hint && <small>{x.hint}</small>}</label>)}</div></section>;
-}
-
-function Declaration({ file, update }: { file: PropertyFile; update: (fn: (f: PropertyFile) => PropertyFile) => void }) {
-  const answered = DECLARATION_TOPICS.filter(t => file.declaration[t.key]?.answer).length;
-  const set = (k: string, patch: Partial<{ answer: Answer; details: string }>, msg?: string) => update(f => {
-    const next = { ...f, declaration: { ...f.declaration, [k]: { ...(f.declaration[k] || { answer: '' as Answer, details: '' }), ...patch } } };
-    return msg ? log(next, msg) : next;
-  });
-  return <><section className="rp-card"><p className="rp-intro">Go through each topic with the seller before they fill in the seller’s property disclosure. Hints come from the building’s age and type. {answered}/{DECLARATION_TOPICS.length} answered.</p>
-    <div className="rp-topics">{DECLARATION_TOPICS.map(t => { const a = file.declaration[t.key] || { answer: '', details: '' }; const hint = t.hint?.(file.snapshot); return <div key={t.key} className={`rp-topic${a.answer === 'yes' ? ' flag' : ''}`}>
-      <div><b>{t.label}</b><p>{t.ask}</p>{hint && <p className="rp-hint">{hint}</p>}</div>
-      <div className="rp-seg">{(['yes', 'no', 'unknown'] as Answer[]).map(v => <button key={v} className={a.answer === v ? 'on' : ''} onClick={() => set(t.key, { answer: a.answer === v ? '' : v }, `Disclosure · ${t.label}: ${v === 'unknown' ? 'don’t know' : v}`)}>{v === 'unknown' ? 'Don’t know' : v[0].toUpperCase() + v.slice(1)}</button>)}</div>
-      <textarea placeholder="Details, dates, invoices…" value={a.details} onChange={e => set(t.key, { details: e.target.value })}/>
-    </div>; })}</div></section>
-    <DocPreview html={declarationHtml(file, loadSettings())} onPrint={() => update(f => log(f, 'Disclosure notes printed'))} compact/></>;
 }
 
 function Checklist({ file, update }: { file: PropertyFile; update: (fn: (f: PropertyFile) => PropertyFile) => void }) {
@@ -197,30 +171,6 @@ function Documents({ file, update }: { file: PropertyFile; update: (fn: (f: Prop
   </section>;
 }
 
-function Listing({ file, update }: { file: PropertyFile; update: (fn: (f: PropertyFile) => PropertyFile) => void }) {
-  const [copied, setCopied] = useState('');
-  const rows = listingText(file);
-  const copy = async (label: string, text: string) => { try { await navigator.clipboard.writeText(text); setCopied(label); window.setTimeout(() => setCopied(''), 1500); } catch { /* blocked */ } };
-  return <><section className="rp-card"><p className="rp-intro">Listing details ready to paste into your MLS. Copy each field, then attach the documents from the Documents tab.</p>
-    <div className="rp-form">{LISTING_FIELDS.map(x => <label key={x.key} className={x.type === 'area' ? 'wide' : ''}>{x.label}{x.type === 'area' ? <textarea value={file.listing[x.key] || ''} onChange={e => update(f => ({ ...f, listing: { ...f.listing, [x.key]: e.target.value } }))}/> : <input value={file.listing[x.key] || ''} onChange={e => update(f => ({ ...f, listing: { ...f.listing, [x.key]: e.target.value } }))}/>}</label>)}</div></section>
-    <section className="rp-card"><div className="rp-actions"><h3>Listing sheet</h3><button className="rp-primary" onClick={() => { void copy('all', rows.map(([k, v]) => `${k}: ${v}`).join('\n')); update(f => log(f, 'Listing sheet copied')); }}>{copied === 'all' ? <Check size={15}/> : <Copy size={15}/>} Copy all</button></div>
-      <dl className="rp-sheet">{rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd><button className="rp-ghost" onClick={() => void copy(k, v)} aria-label={`Copy ${k}`}>{copied === k ? <Check size={13}/> : <Copy size={13}/>}</button></div>)}</dl></section></>;
-}
-
-function Supervision({ file, settings, update }: { file: PropertyFile; settings: Settings; update: (fn: (f: PropertyFile) => PropertyFile) => void }) {
-  const [by, setBy] = useState(file.review?.by || '');
-  const [note, setNote] = useState(file.review?.note || '');
-  const steps = settings.agencyChecklist.filter(c => c.trim());
-  const done = steps.filter(c => file.agencyChecks[c]).length;
-  return <><section className="rp-card"><p className="rp-intro">Your agency’s standard steps for every file ({done}/{steps.length}). Edit the list under Branding & agency.</p>
-    <ul className="rp-checks">{steps.map(c => <li key={c}><label><input type="checkbox" checked={!!file.agencyChecks[c]} onChange={e => update(f => log({ ...f, agencyChecks: { ...f.agencyChecks, [c]: e.target.checked } }, `Agency step ${e.target.checked ? 'done' : 'reopened'}: ${c}`))}/>{c}</label></li>)}</ul></section>
-    <section className="rp-card"><h3>Supervisor review</h3>
-      {file.review ? <p className="rp-ok"><Check size={15}/> Reviewed by <b>{file.review.by}</b> on {when(file.review.at)}{file.review.note ? ` · ${file.review.note}` : ''}</p> : <p className="rp-muted">Not reviewed yet.</p>}
-      <div className="rp-form"><label>Reviewer<input value={by} onChange={e => setBy(e.target.value)}/></label><label className="wide">Comment<textarea value={note} onChange={e => setNote(e.target.value)}/></label></div>
-      <div className="rp-actions"><button className="rp-primary" disabled={!by.trim()} onClick={() => update(f => log({ ...f, review: { by: by.trim(), at: now(), note: note.trim() } }, `Reviewed by ${by.trim()}`))}><Check size={15}/> Mark as reviewed</button>
-        {file.review && <button className="rp-ghost" onClick={() => update(f => log({ ...f, review: null }, 'Review cleared'))}>Clear review</button>}</div></section></>;
-}
-
 function SettingsView({ settings, setSettings, files, setFiles }: { settings: Settings; setSettings: (s: Settings) => void; files: PropertyFile[]; setFiles: (f: PropertyFile[]) => void }) {
   const set = (patch: Partial<Settings>) => setSettings({ ...settings, ...patch });
   // Internal use only: no broker name, title, license or contact details.
@@ -242,8 +192,6 @@ function SettingsView({ settings, setSettings, files, setFiles }: { settings: Se
       <div className="rp-form">{fields.map(([k, l]) => <label key={k}>{l}<input value={String(settings[k])} onChange={e => set({ [k]: e.target.value })}/></label>)}
         <label>Accent colour<input type="color" value={settings.color} onChange={e => set({ color: e.target.value })}/></label>
         <label>Logo<span className="rp-logo">{settings.logo && <img src={settings.logo} alt=""/>}<label className="rp-ghost"><Upload size={14}/> Upload<input type="file" accept="image/*" hidden onChange={e => logo(e.target.files?.[0])}/></label>{settings.logo && <button className="rp-ghost" onClick={() => set({ logo: '' })}>Remove</button>}</span></label></div></section>
-    <section className="rp-card"><h3>Agency standard steps</h3><p className="rp-intro">One step per line. Every file shows this list under Supervision, so the whole team follows the same process.</p>
-      <textarea className="rp-big" value={settings.agencyChecklist.join('\n')} onChange={e => set({ agencyChecklist: e.target.value.split('\n') })}/></section>
     <section className="rp-card"><h3>Backup</h3><p className="rp-intro">Files are saved in this browser only. Download a backup to move them to another computer or share them with your agency. Attached documents are not included.</p>
       <div className="rp-actions"><button className="rp-primary" onClick={backup}><Download size={15}/> Download backup</button><label className="rp-ghost"><Upload size={14}/> Restore backup<input type="file" accept="application/json" hidden onChange={e => restore(e.target.files?.[0])}/></label></div></section>
   </div>;

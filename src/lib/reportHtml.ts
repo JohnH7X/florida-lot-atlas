@@ -48,8 +48,6 @@ export function reportHtml(f: PropertyFile, settings: Settings) {
   const sat = satelliteFrame(s.rings);
   const depth = u?.depth ?? (u?.frontage && (u.landArea ?? s.area) ? (u.landArea ?? s.area)! / u.frontage : null);
   const done = PREOFFER_CHECKS.filter(c => f.checks[c.key]).length;
-  const declared = DECLARATION_TOPICS.filter(t => f.declaration[t.key]?.answer);
-  const flagged = DECLARATION_TOPICS.filter(t => f.declaration[t.key]?.answer === 'yes');
   const hints = DECLARATION_TOPICS.map(t => t.hint?.(s)).filter(Boolean);
   const sources = [
     ['Property appraiser', s.rollUrl], ['Zoning', s.zoneGrid || s.zoningUrl],
@@ -78,7 +76,6 @@ export function reportHtml(f: PropertyFile, settings: Settings) {
   <tr><th>Perimeter (drawing)</th><td>${len(s.perimeter)}</td></tr><tr><th>Sides (drawing)</th><td>${s.sides.map((m, i) => `${i + 1}: ${m.toFixed(1)} m`).join(' · ') || '—'}</td></tr></table>
   <h2>6. Zoning</h2><table><tr><th>District</th><td>${esc(s.zone || 'Set by the city or county — not in statewide open data')}</td></tr>${u?.far ? `<tr><th>FAR</th><td>${esc(u.far)}</td></tr>` : ''}${u?.landmark || u?.histDistrict ? `<tr><th>Landmark</th><td>${esc([u.landmark, u.histDistrict].filter(Boolean).join(' · '))}</td></tr>` : ''}${u?.agDistrict ? `<tr><th>Agricultural district</th><td>${esc(u.agDistrict)}</td></tr>` : ''}${s.zoneGrid ? `<tr><th>Zoning map</th><td><a href="${esc(s.zoneGrid)}">${esc(s.zoneGrid)}</a></td></tr>` : ''}${s.zoningUrl ? `<tr><th>Zoning code</th><td><a href="${esc(s.zoningUrl)}">${esc(s.zoningUrl)}</a></td></tr>` : ''}</table>
   <h2>7. Points to verify</h2>${hints.length ? `<ul>${hints.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : '<p>No age- or type-based flags from open data.</p>'}
-  ${declared.length ? `<p>Seller’s disclosure: ${declared.length} of ${DECLARATION_TOPICS.length} topics answered${flagged.length ? `; “yes” on <b>${flagged.map(t => esc(t.label)).join(', ')}</b>` : ''}.</p>` : ''}
   <h2>8. Due diligence status</h2><p>${done} of ${PREOFFER_CHECKS.length} pre-offer checks completed.</p><table>${PREOFFER_CHECKS.map(c => `<tr><td style="width:90px">${f.checks[c.key] ? '<span class="ok">Done</span>' : '<span class="todo">To do</span>'}</td><td>${esc(c.label)}${f.checkNotes?.[c.key] ? `<br><small style="color:#555">${esc(f.checkNotes[c.key])}</small>` : ''}</td></tr>`).join('')}</table>
   <h2>9. Primary sources</h2><table>${sources.map(([l, url]) => `<tr><th>${esc(l)}</th><td><a href="${esc(url)}">${esc(url)}</a></td></tr>`).join('')}</table>
   ${f.notes ? `<h2>Broker notes</h2><p>${esc(f.notes).replace(/\n/g, '<br>')}</p>` : ''}
