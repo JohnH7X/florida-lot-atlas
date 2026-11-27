@@ -41,7 +41,7 @@ type Cell = { features: LotFeature[]; source: 'state' | 'county' | 'none' };
 const cells = new Map<string, Cell>();
 const inflight = new Map<string, Promise<Cell>>();
 
-type CountyLayer = { co: number; name: string; url: string; box: [number, number, number, number]; id: string; addr?: string };
+type CountyLayer = { co: number; name: string; url: string; box: [number, number, number, number]; id: string; addr?: string; page?: number };
 /** County appraiser parcel layers that publish polygons, used when the statewide layer is slow or down. */
 const COUNTY_LAYERS: CountyLayer[] = [
   { co: 16, name: 'Broward', url: BROWARD_PARCELS(), box: [-80.89, 25.95, -80.03, 26.35], id: 'FOLIO', addr: 'ADDRESS_LINE_1' },
@@ -50,6 +50,11 @@ const COUNTY_LAYERS: CountyLayer[] = [
   { co: 62, name: 'Pinellas', url: 'https://egis.pinellas.gov/gis/rest/services/PublicWebGIS/Parcels/MapServer/1/query', box: [-82.87, 27.60, -82.53, 28.18], id: 'PARCELID', addr: 'SITE_ADDRESS' },
   { co: 46, name: 'Lee', url: 'https://services2.arcgis.com/LvWGAAhHwbCJ2GMP/arcgis/rest/services/Lee_County_Parcels/FeatureServer/0/query', box: [-82.28, 26.31, -81.56, 26.79], id: 'STRAP', addr: 'SITEADDR' },
   { co: 66, name: 'St. Lucie', url: 'https://slcgis.stlucieco.gov/hosting/rest/services/Property/ParcelsPublicData/MapServer/0/query', box: [-80.68, 27.20, -80.28, 27.56], id: 'ParcelID' },
+  { co: 68, name: 'Sarasota', url: 'https://services3.arcgis.com/icrWMv7eBkctFu1f/arcgis/rest/services/Final_2026_Parcels/FeatureServer/36/query', box: [-82.66, 26.94, -82.05, 27.40], id: 'PID' },
+  { co: 60, name: 'Palm Beach', url: 'https://services1.arcgis.com/ZWOoUZbtaYePLlPw/arcgis/rest/services/Parcels_and_Property_Details_WebMercator/FeatureServer/0/query', box: [-80.89, 26.32, -80.03, 26.98], id: 'PARID', addr: 'SITE_ADDR_STR', page: 2000 },
+  { co: 58, name: 'Orange', url: 'https://vgispublic.ocpafl.org/server/rest/services/DYNAMIC/Dynamic_Layers/MapServer/10/query', box: [-81.66, 28.34, -80.86, 28.79], id: 'PARCEL', addr: 'SITUS', page: 1000 },
+  // Charlotte County (co 18) has no countywide parcel layer on its public ArcGIS Online account, and its own GIS
+  // server (agis*.charlottecountyfl.gov) was unreachable on 2026-11-26, so it has no fallback yet.
 ];
 function BROWARD_PARCELS() { return 'https://services.arcgis.com/JMAJrTsHNLrSsWf5/arcgis/rest/services/PARCEL_POLY_BCPA_TAXROLL/FeatureServer/0/query'; }
 
@@ -65,13 +70,20 @@ async function countyCell(box: number[]): Promise<LotFeature[] | null> {
   const parts = await Promise.all(layers.map(async l => {
     const t = withTimeout(CELL_TIMEOUT_MS);
     try {
-      const body = new URLSearchParams({ geometry: box.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
-        returnGeometry: 'true', outFields: [l.id, l.addr].filter(Boolean).join(','), outSR: '4326', f: 'geojson', ...LIGHT_GEOMETRY });
-      const r = await fetch(l.url, { method: 'POST', body, signal: t.signal });
-      if (!r.ok) return null;
-      const data = await r.json();
-      if (data.error || !Array.isArray(data.features)) return null;
-      return (data.features as LotFeature[]).filter(f => f.geometry).map(f => {
+      // Dense blocks can exceed the server's per-request cap, so page through (up to 4 pages).
+      const got: LotFeature[] = [];
+      for (let pageNo = 0; pageNo < 4; pageNo++) {
+        const body = new URLSearchParams({ geometry: box.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+          returnGeometry: 'true', outFields: [l.id, l.addr].filter(Boolean).join(','), outSR: '4326', f: 'geojson', ...LIGHT_GEOMETRY,
+          ...(l.page ? { resultRecordCount: String(l.page), resultOffset: String(pageNo * l.page), orderByFields: 'OBJECTID' } : {}) });
+        const r = await fetch(l.url, { method: 'POST', body, signal: t.signal });
+        if (!r.ok) { if (pageNo === 0) return null; break; }
+        const data = await r.json();
+        if (data.error || !Array.isArray(data.features)) { if (pageNo === 0) return null; break; }
+        got.push(...data.features);
+        if (!l.page || data.features.length < l.page) break;
+      }
+      return got.filter(f => f.geometry).map(f => {
         const p = f.properties as Record<string, unknown>;
         const id = String(p[l.id] ?? '').trim();
         const props: ParcelProps = { NO_LOT: `c${l.co}-${id}`, LABEL: id, PARCEL_ID: id, CO_NO: l.co, PHY_ADDR1: l.addr ? String(p[l.addr] ?? '') : '', source: `${l.name} County Property Appraiser` };
