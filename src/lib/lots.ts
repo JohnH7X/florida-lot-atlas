@@ -28,9 +28,106 @@ async function query(params: Record<string, string>, signal?: AbortSignal): Prom
   return data;
 }
 
-export function lotsInBounds(bounds: [number, number, number, number], signal?: AbortSignal) {
-  return query({ geometry: bounds.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
-    returnGeometry: 'true', outFields: LIGHT, resultRecordCount: '2000' }, signal);
+// ---------- Parcel outlines for the map view ----------
+// The statewide layer is hosted on a shared server that can take 20–60 s (or time out) when it is busy, so the view is
+// loaded as a grid of small cells: each cell asks for simplified outlines (≈20 cm tolerance, 6 decimals — about a quarter
+// of the full size), is remembered once loaded so panning back costs nothing, keeps loading when the view moves on, and
+// falls back to the county appraiser's own parcel server when the statewide one is slow or down.
+const CELL = 0.01;                    // ≈1 km grid cell
+const CELL_TIMEOUT_MS = 9000;         // then try the county's own server
+const MAX_CELLS = 240;                // remembered cells (oldest dropped first)
+const LIGHT_GEOMETRY = { geometryPrecision: '6', maxAllowableOffset: '0.000002' };
+type Cell = { features: LotFeature[]; source: 'state' | 'county' | 'none' };
+const cells = new Map<string, Cell>();
+const inflight = new Map<string, Promise<Cell>>();
+
+type CountyLayer = { co: number; name: string; url: string; box: [number, number, number, number]; id: string; addr?: string };
+/** County appraiser parcel layers that publish polygons, used when the statewide layer is slow or down. */
+const COUNTY_LAYERS: CountyLayer[] = [
+  { co: 16, name: 'Broward', url: BROWARD_PARCELS(), box: [-80.89, 25.95, -80.03, 26.35], id: 'FOLIO', addr: 'ADDRESS_LINE_1' },
+  { co: 23, name: 'Miami-Dade', url: 'https://gisweb.miamidade.gov/arcgis/rest/services/MD_LandInformation/MapServer/26/query', box: [-80.89, 25.13, -80.11, 25.98], id: 'FOLIO', addr: 'TRUE_SITE_ADDR' },
+  { co: 39, name: 'Hillsborough', url: 'https://gis.hcpafl.org/arcgis/rest/services/Webmaps/HillsboroughFL_WebParcels/MapServer/0/query', box: [-82.66, 27.56, -82.05, 28.18], id: 'folio', addr: 'FullAddress' },
+  { co: 62, name: 'Pinellas', url: 'https://egis.pinellas.gov/gis/rest/services/PublicWebGIS/Parcels/MapServer/1/query', box: [-82.87, 27.60, -82.53, 28.18], id: 'PARCELID', addr: 'SITE_ADDRESS' },
+  { co: 46, name: 'Lee', url: 'https://services2.arcgis.com/LvWGAAhHwbCJ2GMP/arcgis/rest/services/Lee_County_Parcels/FeatureServer/0/query', box: [-82.28, 26.31, -81.56, 26.79], id: 'STRAP', addr: 'SITEADDR' },
+  { co: 66, name: 'St. Lucie', url: 'https://slcgis.stlucieco.gov/hosting/rest/services/Property/ParcelsPublicData/MapServer/0/query', box: [-80.68, 27.20, -80.28, 27.56], id: 'ParcelID' },
+];
+function BROWARD_PARCELS() { return 'https://services.arcgis.com/JMAJrTsHNLrSsWf5/arcgis/rest/services/PARCEL_POLY_BCPA_TAXROLL/FeatureServer/0/query'; }
+
+const overlaps = (a: number[], b: number[]) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+function withTimeout(ms: number): { signal: AbortSignal; done: () => void } {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  return { signal: c.signal, done: () => clearTimeout(t) };
+}
+
+async function countyCell(box: number[]): Promise<LotFeature[] | null> {
+  const layers = COUNTY_LAYERS.filter(l => overlaps(l.box, box));
+  if (!layers.length) return null;
+  const parts = await Promise.all(layers.map(async l => {
+    const t = withTimeout(CELL_TIMEOUT_MS);
+    try {
+      const body = new URLSearchParams({ geometry: box.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+        returnGeometry: 'true', outFields: [l.id, l.addr].filter(Boolean).join(','), outSR: '4326', f: 'geojson', ...LIGHT_GEOMETRY });
+      const r = await fetch(l.url, { method: 'POST', body, signal: t.signal });
+      if (!r.ok) return null;
+      const data = await r.json();
+      if (data.error || !Array.isArray(data.features)) return null;
+      return (data.features as LotFeature[]).filter(f => f.geometry).map(f => {
+        const p = f.properties as Record<string, unknown>;
+        const id = String(p[l.id] ?? '').trim();
+        const props: ParcelProps = { NO_LOT: `c${l.co}-${id}`, LABEL: id, PARCEL_ID: id, CO_NO: l.co, PHY_ADDR1: l.addr ? String(p[l.addr] ?? '') : '', source: `${l.name} County Property Appraiser` };
+        return { ...f, properties: props };
+      });
+    } catch { return null; } finally { t.done(); }
+  }));
+  if (parts.every(p => p === null)) return null;
+  return parts.flatMap(p => p || []);
+}
+
+function loadCell(key: string, box: number[]): Promise<Cell> {
+  const have = cells.get(key);
+  if (have) { cells.delete(key); cells.set(key, have); return Promise.resolve(have); }   // refresh its age
+  const pending = inflight.get(key); if (pending) return pending;
+  const job = (async (): Promise<Cell> => {
+    const t = withTimeout(CELL_TIMEOUT_MS);
+    try {
+      const data = await query({ geometry: box.join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+        returnGeometry: 'true', outFields: LIGHT, resultRecordCount: '2000', ...LIGHT_GEOMETRY }, t.signal);
+      return { features: data.features.filter(f => f.geometry) as LotFeature[], source: 'state' };
+    } catch {
+      const county = await countyCell(box);
+      return county ? { features: county, source: 'county' } : { features: [], source: 'none' };
+    } finally { t.done(); }
+  })().then(cell => {
+    inflight.delete(key);
+    if (cell.source !== 'none') {           // failures are retried on the next view change
+      cells.set(key, cell);
+      while (cells.size > MAX_CELLS) cells.delete(cells.keys().next().value as string);
+    }
+    return cell;
+  });
+  inflight.set(key, job);
+  return job;
+}
+
+export type LotsResult = FeatureCollection<Geometry | null, ParcelProps> & { fromCounty: number; missing: number };
+/** Parcel outlines covering a map view (grid-cached; cells keep loading in the background even if the view moves on). */
+export async function lotsInBounds(bounds: [number, number, number, number], signal?: AbortSignal): Promise<LotsResult> {
+  const [w, s, e, n] = bounds;
+  const x0 = Math.floor(w / CELL), x1 = Math.floor(e / CELL), y0 = Math.floor(s / CELL), y1 = Math.floor(n / CELL);
+  const keys: [string, number[]][] = [];
+  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++)
+    keys.push([`${x}:${y}`, [+(x * CELL).toFixed(4), +(y * CELL).toFixed(4), +((x + 1) * CELL).toFixed(4), +((y + 1) * CELL).toFixed(4)]]);
+  // Load the cells nearest the centre first, a few at a time, so a busy server is not flooded.
+  const cx = (w + e) / 2, cy = (s + n) / 2;
+  keys.sort((a, b) => Math.hypot(a[1][0] - cx, a[1][1] - cy) - Math.hypot(b[1][0] - cx, b[1][1] - cy));
+  const results: Cell[] = new Array(keys.length);
+  let next = 0;
+  const worker = async () => { while (next < keys.length && !signal?.aborted) { const i = next++; results[i] = await loadCell(keys[i][0], keys[i][1]); } };
+  const abort = new Promise<never>((_, reject) => signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true }));
+  await Promise.race([Promise.all(Array.from({ length: Math.min(4, keys.length) }, worker)), abort]);
+  const seen = new Set<string>(); const features: LotFeature[] = [];
+  for (const c of results) for (const f of c.features) { const id = String(f.properties.NO_LOT); if (!seen.has(id)) { seen.add(id); features.push(f); } }
+  return { type: 'FeatureCollection', features, fromCounty: results.filter(c => c.source === 'county').length, missing: results.filter(c => c.source === 'none').length };
 }
 
 /** A parcel by its "<county no>-<parcel id>" key (as stored on pins). */

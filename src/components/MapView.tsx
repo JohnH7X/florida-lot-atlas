@@ -543,7 +543,8 @@ export default function MapView(props: Props) {
         void countySalesForLots(base as LotFeature[], [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()], controller.signal)
           .then(extra => { if (!controller.signal.aborted && extra.size) paint(extra); }).catch(() => undefined);
         (m.getSource('lot-all-dims') as maplibregl.GeoJSONSource | undefined)?.setData(edgeLabels(base as LotFeature[], e => e.length >= 3 ? `${(e.length * FT_PER_M).toFixed(0)} ft` : ''));
-        setLotStatus('');
+        setLotStatus(data.missing ? 'The state parcel server is slow — some outlines are missing; move the map to retry'
+          : data.fromCounty ? 'State parcel server is slow — outlines shown from the county appraiser' : '');
       }).catch(() => { if (!controller.signal.aborted) setLotStatus('Cadastre lots unavailable'); });
     }
     refreshLotsRef.current = refreshLots;
