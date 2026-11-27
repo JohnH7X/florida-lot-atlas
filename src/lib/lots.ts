@@ -53,8 +53,8 @@ const COUNTY_LAYERS: CountyLayer[] = [
   { co: 68, name: 'Sarasota', url: 'https://services3.arcgis.com/icrWMv7eBkctFu1f/arcgis/rest/services/Final_2026_Parcels/FeatureServer/36/query', box: [-82.66, 26.94, -82.05, 27.40], id: 'PID' },
   { co: 60, name: 'Palm Beach', url: 'https://services1.arcgis.com/ZWOoUZbtaYePLlPw/arcgis/rest/services/Parcels_and_Property_Details_WebMercator/FeatureServer/0/query', box: [-80.89, 26.32, -80.03, 26.98], id: 'PARID', addr: 'SITE_ADDR_STR', page: 2000 },
   { co: 58, name: 'Orange', url: 'https://vgispublic.ocpafl.org/server/rest/services/DYNAMIC/Dynamic_Layers/MapServer/10/query', box: [-81.66, 28.34, -80.86, 28.79], id: 'PARCEL', addr: 'SITUS', page: 1000 },
-  // Charlotte County (co 18) has no countywide parcel layer on its public ArcGIS Online account, and its own GIS
-  // server (agis*.charlottecountyfl.gov) was unreachable on 2026-11-26, so it has no fallback yet.
+  // Charlotte's "Ownership" layer is its tax-parcel polygons; the server sometimes stalls ~20 s on a cold area (the cell timeout covers it).
+  { co: 18, name: 'Charlotte', url: 'https://agis3.charlottecountyfl.gov/arcgis/rest/services/Essentials/CCGISLayers/MapServer/27/query', box: [-82.36, 26.76, -81.56, 27.04], id: 'ACCOUNT', addr: 'FullPropertyAddress', page: 1000 },
 ];
 function BROWARD_PARCELS() { return 'https://services.arcgis.com/JMAJrTsHNLrSsWf5/arcgis/rest/services/PARCEL_POLY_BCPA_TAXROLL/FeatureServer/0/query'; }
 
@@ -86,7 +86,7 @@ async function countyCell(box: number[]): Promise<LotFeature[] | null> {
       return got.filter(f => f.geometry).map(f => {
         const p = f.properties as Record<string, unknown>;
         const id = String(p[l.id] ?? '').trim();
-        const props: ParcelProps = { NO_LOT: `c${l.co}-${id}`, LABEL: id, PARCEL_ID: id, CO_NO: l.co, PHY_ADDR1: l.addr ? String(p[l.addr] ?? '') : '', source: `${l.name} County Property Appraiser` };
+        const props: ParcelProps = { NO_LOT: `c${l.co}-${id}`, LABEL: id, PARCEL_ID: id, CO_NO: l.co, PHY_ADDR1: l.addr ? String(p[l.addr] ?? '').replace(/\s+/g, ' ').trim() : '', source: `${l.name} County Property Appraiser` };
         return { ...f, properties: props };
       });
     } catch { return null; } finally { t.done(); }
