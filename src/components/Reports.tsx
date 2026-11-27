@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowUpRight, Download, FileText, FolderOpen, Paperclip, Printer, Settings as Gear, Trash2, Upload, X } from 'lucide-react';
 import { DEFAULT_SETTINGS, STATUSES, deleteDoc, getDoc, loadFiles, loadSettings, log, newFile, now, putDoc, saveFiles, saveSettings, uid, type DocMeta, type FileStatus, type LotSnapshot, type PropertyFile, type Settings } from '../lib/files';
-import { DOC_CATEGORIES, PREOFFER_CHECKS, preofferFindings } from '../lib/checklists';
+import { DOC_CATEGORIES, PREOFFER_CHECKS, docCategory, preofferFindings } from '../lib/checklists';
 import { reportHtml } from '../lib/reportHtml';
 
 interface Props { pending: LotSnapshot | null; onClose: () => void; onShowLot: (s: LotSnapshot) => void }
@@ -162,7 +162,7 @@ function Documents({ file, update }: { file: PropertyFile; update: (fn: (f: Prop
       <label className="rp-primary"><Paperclip size={15}/> {busy ? 'Adding…' : 'Add documents'}<input type="file" multiple hidden onChange={e => { void add(e.target.files); e.target.value = ''; }}/></label>
       {file.docs.length > 0 && <button className="rp-ghost" onClick={() => file.docs.forEach((d, i) => window.setTimeout(() => void open(d.id, d.name, true), i * 400))}><Download size={14}/> Download all</button>}</div>
     {file.docs.length === 0 ? <p className="rp-muted">No documents yet.</p> : <ul className="rp-docs">{file.docs.map(d => <li key={d.id}>
-      <button className="rp-link" onClick={() => void open(d.id, d.name)}>{d.name}</button><small>{d.category} · {kb(d.size)} · {when(d.added)}</small>
+      <button className="rp-link" onClick={() => void open(d.id, d.name)}>{d.name}</button><small>{docCategory(d.category)} · {kb(d.size)} · {when(d.added)}</small>
       <button className="rp-ghost" onClick={() => void open(d.id, d.name, true)} aria-label={`Download ${d.name}`}><Download size={13}/></button>
       <button className="rp-ghost danger" aria-label={`Remove ${d.name}`} onClick={async () => { await deleteDoc(d.id).catch(() => undefined); update(f => log({ ...f, docs: f.docs.filter(x => x.id !== d.id) }, `Removed ${d.name}`)); }}><Trash2 size={13}/></button></li>)}</ul>}
   </section>;

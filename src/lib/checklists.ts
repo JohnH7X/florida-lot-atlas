@@ -99,7 +99,9 @@ export const LISTING_FIELDS: Field[] = [
   { key: 'agentRemarks', label: 'Agent remarks', type: 'area' }
 ];
 
-export const DOC_CATEGORIES = ['Listing / buyer agreement', 'Brokerage relationship disclosure', 'Seller’s disclosure', 'Survey', 'Title commitment', 'Inspections (4-point, wind, WDO)', 'Insurance', 'HOA / condo documents', 'Photos', 'Contract', 'Other'];
+export const DOC_CATEGORIES = ['Property disclosure', 'Survey', 'Title commitment', 'Inspections (4-point, wind, WDO)', 'Insurance', 'HOA / condo documents', 'Photos', 'Contract', 'Other'];
+/** Older documents were filed under seller/buyer and broker categories; show them under neutral names. */
+export const docCategory = (c: string) => ({ 'Seller’s disclosure': 'Property disclosure', 'Listing / buyer agreement': 'Contract', 'Brokerage relationship disclosure': 'Other' } as Record<string, string>)[c] ?? c;
 
 // ---- pre-offer findings filled in from what the atlas already knows about the parcel ----
 
