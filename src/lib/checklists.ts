@@ -72,13 +72,13 @@ export const PREOFFER_CHECKS: Check[] = [
   { key: 'wdo', label: 'Wood-destroying organism (termite) inspection' },
   { key: 'sinkhole', label: 'Sinkhole history checked (Florida Geological Survey)', url: 'https://geodata.dep.state.fl.us/' },
   { key: 'environment', label: 'FDEP contamination sites searched (Map Direct)', url: 'https://ca.dep.state.fl.us/mapdirect/' },
-  { key: 'disclosure', label: 'Seller’s property disclosure received and reviewed' },
+  { key: 'disclosure', label: 'Property disclosure received and reviewed' },
   { key: 'radon', label: 'Radon gas notice included in the contract (§404.056)' },
   { key: 'lead', label: 'Lead-based paint disclosure (built before 1978)' },
   { key: 'hoa', label: 'HOA / condo documents, budget, assessments (rescission period)' },
   { key: 'condo', label: 'Condo milestone inspection and SIRS reviewed' },
   { key: 'cdd', label: 'CDD and special assessments checked' },
-  { key: 'taxes', label: 'Taxes estimated at the buyer’s new assessed value' },
+  { key: 'taxes', label: 'Taxes estimated at the post-sale assessed value' },
   { key: 'valuation', label: 'Price compared with just value and last sale' },
   { key: 'stamps', label: 'Documentary stamp tax estimated' },
   { key: 'financing', label: 'Loan approval, appraisal and insurance binder confirmed' },
@@ -132,7 +132,7 @@ export function preofferFindings(f: PropertyFile): Record<string, Finding> {
   out.zoning = { note: `Zoning is set by ${u?.muni ? `the City of ${u.muni[0] + u.muni.slice(1).toLowerCase()} or ` : ''}${u?.county || 'the county'}; check zoning and future land use.` };
   if (u?.builtYear) out.lead = u.builtYear < 1978 ? { note: `Built ${u.builtYear}: lead paint disclosure required.` } : { note: `Built ${u.builtYear}: lead paint disclosure not required.`, done: true };
   if (u && !/Condo/.test(u.use || '')) out.condo = { note: 'Not a condominium on the roll: not applicable.', done: true };
-  if (u) out.taxes = { note: u.homestead ? `Seller has homestead (assessed ${money(u.totalValue || 0)} vs just ${money(u.marketValue || 0)}): the buyer’s taxes will be based on about ${money(u.marketValue || 0)}.` : `No homestead: assessed ${money(u.totalValue || 0)}, just ${money(u.marketValue || 0)}.` };
+  if (u) out.taxes = { note: u.homestead ? `Homestead now (assessed ${money(u.totalValue || 0)} vs just ${money(u.marketValue || 0)}): after a sale, taxes will be based on about ${money(u.marketValue || 0)}.` : `No homestead: assessed ${money(u.totalValue || 0)}, just ${money(u.marketValue || 0)}.` };
   const value = u?.marketValue;
   if (value) out.valuation = price
     ? { note: `Price ${money(price)} vs just value ${money(value)}: ${price >= value ? '+' : ''}${Math.round((price / value - 1) * 100)}%${u?.sales?.[0] ? `; last sale ${money(u.sales[0].price)} (${u.sales[0].date})` : ''}.`, done: true }
