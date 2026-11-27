@@ -259,13 +259,15 @@ function dated(ms: unknown, price: number, extra: Partial<Sale>): Sale | null {
   return { price, year, month, day, date: `${MONTHS[month - 1]} ${day}, ${year}`, qualified: false, nominal: price <= 100, code: '', vacant: false, book: null, page: null, ...extra };
 }
 const at = ([x, y]: [number, number]) => ({ geometry: `${x},${y}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects' });
+/** Broward publishes the deed's documentary stamp tax (70¢ per $100 of price), not the price: convert it back to the price. */
+export const priceFromStamps = (stamp: unknown) => { const t = Number(stamp) || 0; return t > 0 ? Math.round(t / 0.007 / 100) * 100 : 0; };
 export async function countySales(unit: Unit, center: [number, number] | null): Promise<Sale[] | null> {
   const s = (v: unknown) => typeof v === 'string' && v.trim() && v.trim() !== '0' ? v.trim() : null;
   const n = (v: unknown) => Number(v) || 0;
   if (unit.county === 'Broward County' && center) {
     const a = (await arc(BROWARD, { ...at(center), outFields: '*' }))[0];
     if (!a) return null;
-    return [1, 2, 3, 4, 5].map(i => dated(a[`SALE_DATE_${i}`], n(a[`STAMP_AMOUNT_${i}`]), {
+    return [1, 2, 3, 4, 5].map(i => dated(a[`SALE_DATE_${i}`], priceFromStamps(a[`STAMP_AMOUNT_${i}`]), {
       deed: s(a[`DEED_TYPE_${i}`])?.replace('*', '') || null, book: n(a[`BOOK_${i}`]) ? String(a[`BOOK_${i}`]) : null, page: n(a[`PAGE_${i}`]) ? String(a[`PAGE_${i}`]) : null,
       instrument: n(a[`SALE${i}_CIN`]) ? String(a[`SALE${i}_CIN`]) : null, code: s(a[`SALE${i}_QUAL_CODE`]) || '', qualified: ['01', '02'].includes(String(a[`SALE${i}_QUAL_CODE`] ?? '')) })).filter(Boolean) as Sale[];
   }

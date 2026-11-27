@@ -533,7 +533,9 @@ export default function MapView(props: Props) {
             // County sales (older than the state roll carries) can only make a lot's latest sale newer or fill an empty one.
             for (const c of extra?.get(i) || []) { if (hideT && c.price <= 100) continue; const y = new Date(c.ms).getUTCFullYear(); if (y > sb.year) sb = bandOfSale(y, c.price); }
             counts[sb.band]++;
-            return { ...f, properties: { ...f.properties, saleBand: sb.band, saleText: sb.text } };
+            // Keep the county's newer sales on the feature so the hover can show them with no extra request.
+            const cs = (extra?.get(i) || []).filter(c => !(hideT && c.price <= 100)).sort((x, y) => y.ms - x.ms).slice(0, 2);
+            return { ...f, properties: { ...f.properties, saleBand: sb.band, saleText: sb.text, countySales: cs.length ? JSON.stringify(cs) : '' } };
           });
           setSaleCounts(counts);
           source.setData({ ...data, features: lots } as FeatureCollection);
@@ -687,13 +689,20 @@ export default function MapView(props: Props) {
 
 const esc = (v: unknown) => String(v ?? '').replace(/[<>&"]/g, '');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-/** Hover label: parcel and address; with the Sales tab open, the parcel's recent sales from the state roll. */
+/** Hover label: parcel, address and its latest sales (state roll plus any newer county sales already loaded) — no request needed. */
 function hoverHtml(p: Record<string, unknown>) {
   const head = `<b>Parcel ${esc(p.LABEL || p.NO_LOT)}</b>${p.PHY_ADDR1 && !/^UNASSIGNED/i.test(String(p.PHY_ADDR1)) ? `<br>${esc(p.PHY_ADDR1)}` : ''}`;
-  if (document.body.dataset.lotTab !== 'sales') return `${head}<br><small>Click for owner, value & sales</small>`;
-  const rows = [1, 2].map(i => ({ price: Number(p[`SALE_PRC${i}`]) || 0, yr: Number(p[`SALE_YR${i}`]) || 0, mo: Number(p[`SALE_MO${i}`]) || 0 })).filter(r => r.yr);
+  const countyOutline = typeof p.source === 'string' && String(p.NO_LOT).startsWith('c');
+  const rows = [1, 2].map(i => ({ price: Number(p[`SALE_PRC${i}`]) || 0, yr: Number(p[`SALE_YR${i}`]) || 0, mo: Number(p[`SALE_MO${i}`]) || 0, day: 0 })).filter(r => r.yr);
+  try {
+    for (const c of JSON.parse(String(p.countySales || '[]')) as { ms: number; price: number }[]) {
+      const d = new Date(c.ms), r = { price: c.price, yr: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, day: d.getUTCDate() };
+      if (!rows.some(x => x.yr === r.yr && x.mo === r.mo && (x.price === r.price || !x.price))) rows.push(r);
+    }
+  } catch { /* no county sales */ }
+  rows.sort((a, b) => b.yr - a.yr || b.mo - a.mo || b.day - a.day);
   const body = rows.length
-    ? rows.map(r => `<div class="tip-sale"><span>${r.mo ? MONTHS[r.mo - 1] + ' ' : ''}${r.yr}</span><b>${r.price > 100 ? '$' + r.price.toLocaleString('en-US') : 'Nominal'}</b></div>`).join('')
-    : '<small>No sale in the last two roll years</small>';
-  return `${head}${body}<small>Click for full sales history</small>`;
+    ? rows.slice(0, 3).map(r => `<div class="tip-sale"><span>${r.mo ? MONTHS[r.mo - 1] + ' ' : ''}${r.day ? r.day + ', ' : ''}${r.yr}</span><b>${r.price > 100 ? '$' + r.price.toLocaleString('en-US') : 'Nominal transfer'}</b></div>`).join('')
+    : countyOutline ? '<br><small>No county sale record loaded — the state roll (with sales) is slow right now</small>' : '<small>No sale on the tax roll</small>';
+  return `${head}${body}<small>Click for owner, value & full sales history</small>`;
 }

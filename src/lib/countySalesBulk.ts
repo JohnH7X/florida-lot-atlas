@@ -1,4 +1,4 @@
-import { FL_COUNTIES, type LotFeature } from './lots';
+import { FL_COUNTIES, priceFromStamps, type LotFeature } from './lots';
 
 /** One sale-bearing record from a county's open GIS: a point (the parcel, or one sale) and its sales. */
 interface Rec { x: number; y: number; sales: { ms: number; price: number }[] }
@@ -55,7 +55,7 @@ async function fetchCounty(county: string, b: [number, number, number, number], 
   const idx = (n: number) => Array.from({ length: n }, (_, i) => i + 1);
   if (county === 'Broward County') {
     const rows = await pull(BROWARD, b, idx(5).map(i => `SALE_DATE_${i},STAMP_AMOUNT_${i}`).join(','), 'poly', signal);
-    return rows.map(r => ({ x: r.x, y: r.y, sales: dedupe(idx(5).map(i => ({ ms: num(r.a[`SALE_DATE_${i}`]), price: num(r.a[`STAMP_AMOUNT_${i}`]) }))) }));
+    return rows.map(r => ({ x: r.x, y: r.y, sales: dedupe(idx(5).map(i => ({ ms: num(r.a[`SALE_DATE_${i}`]), price: priceFromStamps(r.a[`STAMP_AMOUNT_${i}`]) }))) }));
   }
   if (county === 'Lee County') {
     const rows = await pull(LEE, b, idx(4).map(i => `S_${i}DATE,S_${i}AMOUNT`).join(','), 'poly', signal);
