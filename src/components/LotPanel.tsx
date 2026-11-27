@@ -32,7 +32,7 @@ import { melbourneUtilitiesAt, type MelbourneUtilities } from '../lib/melbourne'
 import { titusvilleUtilitiesAt, type TitusvilleUtilities } from '../lib/titusville';
 import { cocoaUtilitiesAt, type CocoaUtilities } from '../lib/cocoa';
 import { palmBayUtilitiesAt, type PalmBayUtilities } from '../lib/palmBayUtilities';
-import { countySales, SALES_COUNTIES, type Sale, FT_PER_M, infrastructureAt, type Infra, lotArea, lotCenter, lotEdges, SQFT_PER_M2, streetViewUrl, unitsInLot, type LotFeature, type Unit } from '../lib/lots';
+import { countySales, SALES_COUNTIES, type Sale, FT_PER_M, infrastructureAt, isCountyOutline, type Infra, lotArea, lotCenter, lotEdges, SQFT_PER_M2, streetViewUrl, unitsInLot, type LotFeature, type Unit } from '../lib/lots';
 
 const n = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const dollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -265,8 +265,12 @@ export default function LotPanel({ lot, address, preferPoint, zoneLine, zoneDeta
 
     {zoneLine && <details className="zone-line"><summary>{zoneLine}<ChevronDown size={14}/></summary><div className="zone-line-body">{zoneDetails}</div></details>}
 
-    {units === null && <p className="detail-note" role="status">Loading assessment…</p>}
-    {units?.length === 0 && <p className="detail-note">No assessment record on this parcel. Check the county’s real property office.</p>}
+    {units === null && <p className="detail-note" role="status">{isCountyOutline(lot)
+      ? <>Outline from the {String(lot.properties.source)} — the state parcel server is slow. Loading owner, values and sales from the state tax roll…</>
+      : 'Loading assessment…'}</p>}
+    {units?.length === 0 && <p className="detail-note">{isCountyOutline(lot)
+      ? <>Outline from the {String(lot.properties.source)}. The state tax roll didn’t answer, so owner, values and sales aren’t shown — open the parcel on the county property appraiser’s site, or click the lot again later.</>
+      : 'No assessment record on this parcel. Check the county’s real property office.'}</p>}
 
     {unit && <div className="tabs" role="tablist">{(['overview', 'owner', 'sales', 'infra', 'lot'] as const).map(t => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
       {t === 'overview' ? 'Overview' : t === 'owner' ? 'Owner' : t === 'sales' ? `Sales${unit.sales?.length ? ` (${unit.sales.length})` : ''}` : t === 'infra' ? 'Utilities' : 'Lot'}</button>)}</div>}

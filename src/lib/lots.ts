@@ -392,6 +392,13 @@ export function useLabel(code: string | null): string | null {
 
 /** The parcel's tax-roll record as a unit (Florida has one roll record per parcel). */
 export async function unitsInLot(feature: LotFeature): Promise<Unit[]> {
+  if (isCountyOutline(feature)) {
+    // Owner, values and sales live only on the state roll: wait (up to 90 s) for the statewide answer to the click.
+    const centre = lotCenter(feature);
+    const pending = pendingState.get(String(feature.properties.NO_LOT)) || (centre ? stateLotAtPoint(centre).catch(() => null) : Promise.resolve(null));
+    const state = await Promise.race([pending, new Promise<null>(resolve => setTimeout(() => resolve(null), 90000))]);
+    return state && !isCountyOutline(state) ? unitsInLot(state) : [];
+  }
   const p = feature.properties;
   if (!p || (p.JV == null && p.OWN_NAME == null)) return [];
   const cls = str(p.DOR_UC);
@@ -418,7 +425,49 @@ export async function unitsByLotNumber(_lot: string): Promise<Unit[] | null> {
   return null;
 }
 
-export async function lotAtPoint([lng, lat]: [number, number], signal?: AbortSignal, address = ''): Promise<LotFeature | null> {
+/** Statewide answers still arriving after a click fell back to the county outline, keyed by that outline's NO_LOT. */
+const pendingState = new Map<string, Promise<LotFeature | null>>();
+const CLICK_TIMEOUT_MS = 8000;
+
+/**
+ * The parcel at a point. Asks the statewide roll first; if it hasn't answered within 8 s, shows the county appraiser's
+ * outline instead and keeps the statewide request running so the panel can fill in owner, values and sales when it lands.
+ */
+export async function lotAtPoint(point: [number, number], signal?: AbortSignal, address = ''): Promise<LotFeature | null> {
+  const state = stateLotAtPoint(point, undefined, address);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<'timeout'>(resolve => { timer = setTimeout(() => resolve('timeout'), CLICK_TIMEOUT_MS); });
+  const first = await Promise.race([state.then(f => ({ f }), () => 'error' as const), timedOut]);
+  clearTimeout(timer);
+  if (signal?.aborted) return null;
+  if (first !== 'timeout' && first !== 'error') return first.f;
+  const county = await countyLotAtPoint(point, address);
+  if (!county) return first === 'timeout' ? state : null;      // no county layer here: keep waiting on the state server
+  pendingState.set(String(county.properties.NO_LOT), state.catch(() => null));
+  return county;
+}
+
+async function countyLotAtPoint([lng, lat]: [number, number], address: string): Promise<LotFeature | null> {
+  const r = 0.0004;
+  const near = await countyCell([lng - r, lat - r * 0.9, lng + r, lat + r * 0.9]);
+  if (!near?.length) return null;
+  const number = address.match(/^\s*(\d+)/)?.[1] || '';
+  const matches = (f: LotFeature) => !!number && String(f.properties.PHY_ADDR1 || '').startsWith(number + ' ');
+  const inside = near.filter(f => pointInLot(f, [lng, lat]));
+  if (inside.length && (!number || inside.some(matches))) return inside.find(matches) || inside.sort((a, b) => (lotArea(a) ?? Infinity) - (lotArea(b) ?? Infinity))[0];
+  const kx = Math.cos(lat * Math.PI / 180);
+  const edge = (f: LotFeature) => Math.min(...polygons(f).flatMap(poly => poly[0].slice(1).map((b, i) => {
+    const a = poly[0][i], dx = (b[0] - a[0]) * kx, dy = b[1] - a[1], px = (lng - a[0]) * kx, py = lat - a[1];
+    const t = Math.max(0, Math.min(1, (px * dx + py * dy) / (dx * dx + dy * dy || 1)));
+    return (px - t * dx) ** 2 + (py - t * dy) ** 2;
+  })));
+  return near.sort((x, y) => Number(matches(y)) - Number(matches(x)) || edge(x) - edge(y))[0] || null;
+}
+
+/** True when this outline came from a county appraiser's server rather than the statewide roll. */
+export const isCountyOutline = (f: LotFeature) => typeof f.properties?.source === 'string' && String(f.properties.NO_LOT).startsWith('c');
+
+async function stateLotAtPoint([lng, lat]: [number, number], signal?: AbortSignal, address = ''): Promise<LotFeature | null> {
   const box = (r: number) => query({ geometry: [lng - r, lat - r * 0.9, lng + r, lat + r * 0.9].join(','), geometryType: 'esriGeometryEnvelope', inSR: '4326',
     spatialRel: 'esriSpatialRelIntersects', returnGeometry: 'true' }, signal);
   const number = address.match(/^\s*(\d+)/)?.[1] || '';
