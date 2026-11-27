@@ -20,8 +20,9 @@ export interface LotSnapshot {
   capturedAt: string;
 }
 
-export type FileStatus = 'Prospect' | 'Listing' | 'Buyer search' | 'Offer' | 'Accepted' | 'Closed' | 'Archived';
-export const STATUSES: FileStatus[] = ['Prospect', 'Listing', 'Buyer search', 'Offer', 'Accepted', 'Closed', 'Archived'];
+// Internal use: no seller/buyer statuses. Files saved as 'Listing' or 'Buyer search' load as 'Prospect'.
+export type FileStatus = 'Prospect' | 'Offer' | 'Accepted' | 'Closed' | 'Archived';
+export const STATUSES: FileStatus[] = ['Prospect', 'Offer', 'Accepted', 'Closed', 'Archived'];
 
 export type Answer = '' | 'yes' | 'no' | 'unknown';
 export interface DocMeta { id: string; name: string; size: number; type: string; added: string; category: string }
@@ -90,7 +91,7 @@ function write(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or blocked */ }
 }
 
-export const loadFiles = () => read<PropertyFile[]>(FILES_KEY, []);
+export const loadFiles = () => read<PropertyFile[]>(FILES_KEY, []).map(f => STATUSES.includes(f.status) ? f : { ...f, status: 'Prospect' as FileStatus });
 export const saveFiles = (files: PropertyFile[]) => write(FILES_KEY, files);
 export const loadSettings = (): Settings => ({ ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(SETTINGS_KEY, {}) });
 export const saveSettings = (s: Settings) => write(SETTINGS_KEY, s);
