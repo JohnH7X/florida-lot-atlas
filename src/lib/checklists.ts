@@ -45,7 +45,7 @@ export const DECLARATION_TOPICS: Topic[] = [
   { key: 'permits', label: 'Permits & code', ask: 'Additions, conversions, or work without permits; open permits or code violations?' },
   { key: 'environment', label: 'Environmental', ask: 'Radon tests, Chinese drywall, fuel tanks, nearby contamination?', hint: s => { const y = year(s); return y && y >= 2001 && y <= 2009 ? `Built ${y}: ask whether Chinese drywall was ever found.` : ''; } },
   { key: 'hoa', label: 'HOA / condo / CDD', ask: 'HOA or condo association, dues, special assessments, CDD bonds, rental restrictions?', hint: s => /Condo/.test(s.unit?.use || '') ? 'Condominium: milestone inspection and structural reserve study (SIRS) status are required disclosures.' : '' },
-  { key: 'taxes', label: 'Taxes & homestead', ask: 'Homestead or other exemptions? Buyer’s taxes will reset to just value.', hint: s => s.unit?.homestead ? 'Seller has homestead: the buyer’s assessed value resets to just value next year.' : '' },
+  { key: 'taxes', label: 'Taxes & homestead', ask: 'Homestead or other exemptions? Taxes reset to just value after a sale.', hint: s => s.unit?.homestead ? 'Homestead now: the assessed value resets to just value the year after a sale.' : '' },
   { key: 'other', label: 'Anything else', ask: 'Any other known defect that materially affects the value?' }
 ];
 
