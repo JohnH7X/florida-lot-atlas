@@ -104,7 +104,7 @@ function FileView({ file, settings, update, onShowLot, onDelete }: { file: Prope
     </div>
     <nav className="rp-tabs">{TABS.map(t => <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}</button>)}</nav>
     {tab === 'Report' && <DocPreview html={reportHtml(file, settings)} onPrint={() => update(f => log({ ...f, reports: f.reports + 1 }, 'Property report generated'))} intro={<>
-      A branded report built from the tax roll, sales and the parcel map, section by section, with the status of your checks. {!settings.broker && <b>Add your name and logo under Branding & agency.</b>}
+      A branded report built from the tax roll, sales and the parcel map, section by section, with the status of your checks.
       <label className="rp-notes">Broker notes printed in the report<textarea value={file.notes} onChange={e => update(f => ({ ...f, notes: e.target.value }))}/></label></>}/>}
     {tab === 'Agreement' && <><Worksheet fields={MANDATE_FIELDS.filter(x => !x.side || x.side === file.side)} values={file.mandate} onChange={(k, v) => update(f => ({ ...f, mandate: { ...f.mandate, [k]: v } }))}
       intro={`Collect what you need for the ${file.side === 'listing' ? 'listing agreement' : 'buyer agency agreement'} and the Florida brokerage relationship disclosure. Property details come from the file. Complete and sign the official form.`}/>
@@ -223,7 +223,8 @@ function Supervision({ file, settings, update }: { file: PropertyFile; settings:
 
 function SettingsView({ settings, setSettings, files, setFiles }: { settings: Settings; setSettings: (s: Settings) => void; files: PropertyFile[]; setFiles: (f: PropertyFile[]) => void }) {
   const set = (patch: Partial<Settings>) => setSettings({ ...settings, ...patch });
-  const fields: [keyof Settings, string][] = [['broker', 'Broker name'], ['title', 'Title'], ['agency', 'Agency'], ['licence', 'FL license no.'], ['phone', 'Phone'], ['email', 'Email']];
+  // Internal use only: no broker name, title, license or contact details.
+  const fields: [keyof Settings, string][] = [['agency', 'Agency']];
   function logo(file?: File) {
     if (!file) return;
     const r = new FileReader(); r.onload = () => set({ logo: String(r.result) }); r.readAsDataURL(file);
