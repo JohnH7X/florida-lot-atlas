@@ -67,7 +67,7 @@ export default function Reports({ pending, onClose, onShowLot }: Props) {
 
 function Dashboard({ files, filter, setFilter, q, setQ, open }: { files: PropertyFile[]; filter: FileStatus | ''; setFilter: (s: FileStatus | '') => void; q: string; setQ: (s: string) => void; open: (id: string) => void }) {
   const counts = useMemo(() => Object.fromEntries(STATUSES.map(s => [s, files.filter(f => f.status === s).length])), [files]);
-  const shown = files.filter(f => (!filter || f.status === filter) && (!q || `${f.snapshot.address} ${f.snapshot.lot} ${f.client}`.toLowerCase().includes(q.toLowerCase())))
+  const shown = files.filter(f => (!filter || f.status === filter) && (!q || `${f.snapshot.address} ${f.snapshot.lot}`.toLowerCase().includes(q.toLowerCase())))
     .sort((a, b) => b.updated.localeCompare(a.updated));
   const recent = files.flatMap(f => f.history.slice(0, 5).map(h => ({ ...h, f }))).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
   return <div className="rp-dash">
@@ -75,13 +75,13 @@ function Dashboard({ files, filter, setFilter, q, setQ, open }: { files: Propert
       <button className={!filter ? 'on' : ''} onClick={() => setFilter('')}><b>{files.length}</b>All files</button>
       {STATUSES.map(s => <button key={s} className={filter === s ? 'on' : ''} onClick={() => setFilter(filter === s ? '' : s)}><b>{counts[s]}</b>{s}</button>)}
     </div>
-    <input className="rp-search" placeholder="Search address, lot or client" value={q} onChange={e => setQ(e.target.value)}/>
+    <input className="rp-search" placeholder="Search address or lot" value={q} onChange={e => setQ(e.target.value)}/>
     {files.length === 0 ? <div className="rp-empty"><FileText size={28}/><p><b>No property files yet.</b> Click a lot on the map, then <b>Create report</b> in its card. The file keeps the report, worksheets, documents and history together.</p></div>
       : <div className="rp-table" role="table">
-        <div className="rp-row rp-head" role="row"><span>Property</span><span>Client</span><span>Status</span><span>Progress</span><span>Updated</span></div>
+        <div className="rp-row rp-head" role="row"><span>Property</span><span>Status</span><span>Progress</span><span>Updated</span></div>
         {shown.map(f => { const done = PREOFFER_CHECKS.filter(c => f.checks[c.key]).length; return <button className="rp-row" role="row" key={f.id} onClick={() => open(f.id)}>
-          <span><b>{f.snapshot.address || `Parcel ${f.snapshot.lot}`}</b><small>Tax map {f.snapshot.lot} · {f.side === 'listing' ? 'Seller' : 'Buyer'}</small></span>
-          <span>{f.client || '—'}</span><span><i className={`rp-pill s-${f.status.replace(/\s/g, '')}`}>{f.status}</i></span>
+          <span><b>{f.snapshot.address || `Parcel ${f.snapshot.lot}`}</b><small>Tax map {f.snapshot.lot}</small></span>
+          <span><i className={`rp-pill s-${f.status.replace(/\s/g, '')}`}>{f.status}</i></span>
           <span><i className="rp-bar"><i style={{ width: `${done / PREOFFER_CHECKS.length * 100}%` }}/></i><small>{done}/{PREOFFER_CHECKS.length} checks · {f.docs.length} docs</small></span>
           <span><small>{when(f.updated)}</small></span></button>; })}
       </div>}
@@ -98,15 +98,12 @@ function FileView({ file, settings, update, onShowLot, onDelete }: { file: Prope
         <button className="rp-link" onClick={onShowLot}>Show on map</button></div>
       <div className="rp-file-meta">
         <label>Status<select value={file.status} onChange={e => update(f => log({ ...f, status: e.target.value as FileStatus }, `Status changed to ${e.target.value}`))}>{STATUSES.map(x => <option key={x}>{x}</option>)}</select></label>
-        <label>Representing<select value={file.side} onChange={e => update(f => log({ ...f, side: e.target.value as 'listing' | 'buyer' }, `Now representing the ${e.target.value === 'listing' ? 'seller' : 'buyer'}`))}><option value="listing">Seller</option><option value="buyer">Buyer</option></select></label>
-        <label>Client<input value={file.client} placeholder="Client name" onChange={e => update(f => ({ ...f, client: e.target.value }))} onBlur={() => update(f => f.client ? log(f, `Client set to ${f.client}`) : f)}/></label>
         <button className="rp-ghost danger" onClick={onDelete} title="Delete file"><Trash2 size={15}/></button>
       </div>
     </div>
     <nav className="rp-tabs">{TABS.map(t => <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}</button>)}</nav>
     {tab === 'Report' && <DocPreview html={reportHtml(file, settings)} onPrint={() => update(f => log({ ...f, reports: f.reports + 1 }, 'Property report generated'))} intro={<>
-      A branded report built from the tax roll, sales and the parcel map, section by section, with the status of your checks.
-      <label className="rp-notes">Broker notes printed in the report<textarea value={file.notes} onChange={e => update(f => ({ ...f, notes: e.target.value }))}/></label></>}/>}
+      A branded report built from the tax roll, sales and the parcel map, section by section, with the status of your checks.</>}/>}
     {tab === 'Pre-offer' && <Checklist file={file} update={update}/>}
     {tab === 'Documents' && <Documents file={file} update={update}/>}
     {tab === 'History' && <section className="rp-card"><h3>Activity history</h3><ul className="rp-history">{file.history.map((h, i) => <li key={i}><time>{when(h.at)}</time><span>{h.text}</span></li>)}</ul></section>}

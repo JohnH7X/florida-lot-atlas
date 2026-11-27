@@ -40,7 +40,7 @@ function shell(title: string, s: Settings, body: string) {
 
 function head(f: PropertyFile, kind: string) {
   const s = f.snapshot;
-  return `<p class="sub">${esc(kind)} · ${date(new Date().toISOString())}</p><h1>${esc(s.address || `Parcel ${s.lot}`)}</h1><p class="sub">Parcel ${esc(s.lot)}${s.place ? ` · ${esc(s.place)}` : ''}${f.client ? ` · Client: ${esc(f.client)}` : ''}</p>`;
+  return `<p class="sub">${esc(kind)} · ${date(new Date().toISOString())}</p><h1>${esc(s.address || `Parcel ${s.lot}`)}</h1><p class="sub">Parcel ${esc(s.lot)}${s.place ? ` · ${esc(s.place)}` : ''}</p>`;
 }
 
 export function reportHtml(f: PropertyFile, settings: Settings) {
@@ -78,7 +78,6 @@ export function reportHtml(f: PropertyFile, settings: Settings) {
   <h2>7. Points to verify</h2>${hints.length ? `<ul>${hints.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : '<p>No age- or type-based flags from open data.</p>'}
   <h2>8. Due diligence status</h2><p>${done} of ${PREOFFER_CHECKS.length} pre-offer checks completed.</p><table>${PREOFFER_CHECKS.map(c => `<tr><td style="width:90px">${f.checks[c.key] ? '<span class="ok">Done</span>' : '<span class="todo">To do</span>'}</td><td>${esc(c.label)}${f.checkNotes?.[c.key] ? `<br><small style="color:#555">${esc(f.checkNotes[c.key])}</small>` : ''}</td></tr>`).join('')}</table>
   <h2>9. Primary sources</h2><table>${sources.map(([l, url]) => `<tr><th>${esc(l)}</th><td><a href="${esc(url)}">${esc(url)}</a></td></tr>`).join('')}</table>
-  ${f.notes ? `<h2>Broker notes</h2><p>${esc(f.notes).replace(/\n/g, '<br>')}</p>` : ''}
   <div class="foot">Prepared ${date(new Date().toISOString())} from public open data captured ${date(s.capturedAt)}: Florida Department of Revenue tax roll and county parcel maps (Florida Statewide Parcels). This report is a screening tool. It is not a survey, a title search, an inspection, an appraisal or legal advice. Verify every item with the primary source before relying on it. Made with the Florida Lot Atlas · garabedian.ai</div>`;
   return shell(`Report · ${s.address || s.lot}`, settings, body);
 }
