@@ -326,3 +326,9 @@ body.dragging,body.dragging .drag-handle{cursor:grabbing;user-select:none}
 .here-status{position:absolute;right:25px;bottom:202px;z-index:3;background:#fff;border:1px solid #d8dccf;border-radius:6px;padding:8px 11px;font-size:11px;color:#4b5a4a;max-width:260px;box-shadow:0 2px 8px rgba(0,0,0,.1)}
 .maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate){display:none!important}
 @media(max-width:760px){.here-button{bottom:146px;right:52px;padding:8px 12px;font-size:11px}.here-status{bottom:190px;right:12px}}
+.cmbs-pop .maplibregl-popup-content{padding:10px 12px;font-size:12.5px;line-height:1.35;color:#16283f}
+.cmbs-pop .cmbs-sub{color:#5a6b80;margin:2px 0 6px}
+.cmbs-pop table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.cmbs-pop td{padding:2px 0;vertical-align:top}.cmbs-pop td:first-child{color:#5a6b80;padding-right:10px;white-space:nowrap}
+.cmbs-pop .cmbs-note{font-size:11px;color:#5a6b80;margin:6px 0 4px}
+.cmbs-pop a{color:#a35d2d}

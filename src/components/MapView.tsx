@@ -61,6 +61,8 @@ interface Props {
   /** Hernando and Marion County utility-area polygons switched on (the id `areas`). */
   hernando?: string[];
   marion?: string[];
+  /** Fort Lauderdale CMBS loan maturities (public/data/cmbs-fort-lauderdale.geojson). */
+  cmbs?: boolean;
   /** Ids from POLY_SETS (Collier, Highlands, Lake overlays) that are switched on. */
   polys?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
@@ -406,6 +408,44 @@ export default function MapView(props: Props) {
             instance.on('mouseleave', 'place-pins', () => { if (instance) instance.getCanvas().style.cursor = ''; });
             instance.on('click', 'place-pins', e => { const id = e.features?.[0]?.properties?.id; if (id) callbacks.current.onPlacePinClick?.(String(id)); });
           }
+          // CMBS loans with scheduled maturities (Debt Maturity Hunter): circles sized by balance, coloured by research priority.
+          {
+            const vis = callbacks.current.cmbs ? 'visible' : 'none';
+            instance.addSource('cmbs', { type: 'geojson', data: '/data/cmbs-fort-lauderdale.geojson' });
+            instance.addLayer({ id: 'cmbs-circle', type: 'circle', source: 'cmbs', layout: { visibility: vis }, paint: {
+              'circle-color': ['match', ['get', 'band'], 'high', '#b9533f', 'medium', '#e08a00', 'verify', '#7c3aed', '#1f4f7a'],
+              'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'balance']], 1500, 6, 12000, 22],
+              'circle-opacity': ['case', ['<=', ['get', 'months'], 18], 0.92, 0.5],
+              'circle-stroke-color': '#ffffff', 'circle-stroke-width': ['case', ['<=', ['get', 'months'], 18], 2.5, 1] } });
+            if (instance.getStyle().glyphs) instance.addLayer({ id: 'cmbs-label', type: 'symbol', source: 'cmbs', minzoom: 12, layout: { visibility: vis,
+              'text-field': ['get', 'title'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.6], 'text-anchor': 'top', 'text-max-width': 10, 'text-optional': true },
+              paint: { 'text-color': '#16283f', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } });
+            const usd = (n: number) => n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : `$${Math.round(n).toLocaleString()}`;
+            const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+            instance.on('mouseenter', 'cmbs-circle', () => { if (instance) instance.getCanvas().style.cursor = 'pointer'; });
+            instance.on('mouseleave', 'cmbs-circle', () => { if (instance) instance.getCanvas().style.cursor = ''; });
+            instance.on('click', 'cmbs-circle', e => {
+              const f = e.features?.[0]; if (!f || !instance) return;
+              const p = f.properties as Record<string, any>;
+              const n = (k: string) => (p[k] === null || p[k] === undefined || p[k] === 'null') ? null : Number(p[k]);
+              const pct = (v: number | null, d = 0) => v === null ? 'n/a' : `${(v * 100).toFixed(d)}%`;
+              const band = { high: 'High priority', medium: 'Medium priority', monitor: 'Monitor', verify: 'Needs verification (unscored)' }[String(p.band)] || p.band;
+              const gap = n('gap'), cap = n('capacity'), score = n('score');
+              const rows: [string, string][] = [
+                ['Balance', usd(Number(p.balance)) + (Number(p.properties) > 1 ? ` (portfolio of ${p.properties} properties: not this building alone)` : '')],
+                ['Rate', pct(Number(p.rate), 2)], ['Matures', `${p.maturity} (${Number(p.months).toFixed(0)} mo)`],
+                ['DSCR', n('dscr') === null ? 'n/a' : `${n('dscr')!.toFixed(2)}x`], ['Occupancy', pct(n('occupancy'))],
+                ['NOI', n('noi') === null ? 'n/a' : usd(n('noi')!) + (p.noiNote && p.noiNote !== 'null' ? ` (${p.noiNote})` : '')],
+                ['New-loan capacity*', cap === null ? 'n/a' : usd(cap)], ['Funding gap*', gap === null ? 'n/a' : gap > 0 ? `${usd(gap)} (${pct(n('gapPct'))})` : 'None'],
+                ['Priority', score === null ? String(band) : `${score}/100 · ${band}`], ['Status', `${p.status}${p.specialServicing === true || p.specialServicing === 'true' ? ' · special servicing' : ''}${p.modified && p.modified !== 'null' ? ` · modified ${p.modified}` : ''}`],
+              ];
+              if (p.tenants) rows.push(['Top tenants', String(p.tenants)]);
+              new maplibregl.Popup({ maxWidth: '330px', className: 'cmbs-pop' }).setLngLat(e.lngLat).setHTML(
+                `<b>${esc(p.title)}</b><div class="cmbs-sub">${esc(p.type)} · ${esc(p.address)}</div><table>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>` +
+                `<div class="cmbs-note">*7% rate, 25-yr amortization, 1.25x DSCR, 8% debt yield. Screening model only. Data as of ${esc(p.asOf)}, ${esc(p.trust)}.</div>` +
+                `<a href="${esc(p.url)}" target="_blank" rel="noopener">Loan page</a>${p.filing && p.filing !== 'null' ? ` · <a href="${esc(p.filing)}" target="_blank" rel="noopener">SEC filing</a>` : ''}`).addTo(instance);
+            });
+          }
           instance.addLayer({ id: 'lot-selected-fill', type: 'fill', source: 'lot-selected', paint: { 'fill-color': '#f2c200', 'fill-opacity': 0.28 } });
           instance.addLayer({ id: 'lot-selected-line', type: 'line', source: 'lot-selected', paint: { 'line-color': '#f2c200', 'line-width': 4 } });
           // Side lengths of every lot in view (close zoom only), in small type; the selected lot's are larger.
@@ -617,6 +657,10 @@ export default function MapView(props: Props) {
     for (const l of PC_LAYERS) if (m.getLayer(`pc-${l.id}`)) m.setLayoutProperty(`pc-${l.id}`, 'visibility', props.palmCoast?.includes(l.id) ? 'visible' : 'none');
   }, [props.charlotte, props.stLucie, props.citrus, props.flwmi, props.palmCoast, ready]);
   useEffect(() => { if (ready) refreshNpRef.current(); }, [props.northPort, ready]);
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    for (const id of ['cmbs-circle', 'cmbs-label']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', props.cmbs ? 'visible' : 'none');
+  }, [props.cmbs, ready]);
   useEffect(() => { if (ready) { refreshPolyRef.current(); refreshVsRef.current(); } }, [props.hernando, props.marion, props.polys, ready]);
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
