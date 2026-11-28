@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowUpRight, Download, FileText, FolderOpen, Paperclip, Printer, Settings as Gear, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Download, FileText, FolderOpen, Paperclip, Printer, Trash2, Upload, X } from 'lucide-react';
 import { DEFAULT_SETTINGS, STATUSES, deleteDoc, getDoc, loadFiles, loadSettings, log, newFile, now, putDoc, saveFiles, saveSettings, uid, type DocMeta, type FileStatus, type LotSnapshot, type PropertyFile, type Settings } from '../lib/files';
 import { DOC_CATEGORIES, PREOFFER_CHECKS, docCategory, preofferFindings } from '../lib/checklists';
 import { reportHtml } from '../lib/reportHtml';
@@ -48,7 +48,7 @@ export default function Reports({ pending, onClose, onShowLot }: Props) {
       <header className="rp-top">
         {file || showSettings ? <button className="rp-ghost" onClick={() => { setOpenId(null); setShowSettings(false); }}><ArrowLeft size={16}/> All files</button> : <h2><FolderOpen size={18}/> Property files</h2>}
         <div className="rp-top-actions">
-          {!showSettings && <button className="rp-ghost" onClick={() => { setShowSettings(true); setOpenId(null); }}><Gear size={15}/> Branding & agency</button>}
+          {!showSettings && <button className="rp-ghost" onClick={() => { setShowSettings(true); setOpenId(null); }}><Download size={15}/> Backup</button>}
           <button className="icon-button" onClick={onClose} aria-label="Close property files"><X size={18}/></button>
         </div>
       </header>
@@ -169,13 +169,7 @@ function Documents({ file, update }: { file: PropertyFile; update: (fn: (f: Prop
 }
 
 function SettingsView({ settings, setSettings, files, setFiles }: { settings: Settings; setSettings: (s: Settings) => void; files: PropertyFile[]; setFiles: (f: PropertyFile[]) => void }) {
-  const set = (patch: Partial<Settings>) => setSettings({ ...settings, ...patch });
-  // Internal use only: no broker name, title, license or contact details.
-  const fields: [keyof Settings, string][] = [['agency', 'Agency']];
-  function logo(file?: File) {
-    if (!file) return;
-    const r = new FileReader(); r.onload = () => set({ logo: String(r.result) }); r.readAsDataURL(file);
-  }
+  // Internal use only: the branding and agency editor was removed; reports keep the saved name, logo and colour.
   function backup() {
     const blob = new Blob([JSON.stringify({ settings, files }, null, 1)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `property-files-${new Date().toISOString().slice(0, 10)}.json`; a.click();
@@ -185,11 +179,7 @@ function SettingsView({ settings, setSettings, files, setFiles }: { settings: Se
     file.text().then(t => { const d = JSON.parse(t); if (Array.isArray(d.files)) setFiles(d.files); if (d.settings) setSettings({ ...DEFAULT_SETTINGS, ...d.settings }); }).catch(() => alert('That backup could not be read.'));
   }
   return <div className="rp-settings">
-    <section className="rp-card"><h3>Report branding</h3><p className="rp-intro">Printed at the top of every report and worksheet.</p>
-      <div className="rp-form">{fields.map(([k, l]) => <label key={k}>{l}<input value={String(settings[k])} onChange={e => set({ [k]: e.target.value })}/></label>)}
-        <label>Accent colour<input type="color" value={settings.color} onChange={e => set({ color: e.target.value })}/></label>
-        <label>Logo<span className="rp-logo">{settings.logo && <img src={settings.logo} alt=""/>}<label className="rp-ghost"><Upload size={14}/> Upload<input type="file" accept="image/*" hidden onChange={e => logo(e.target.files?.[0])}/></label>{settings.logo && <button className="rp-ghost" onClick={() => set({ logo: '' })}>Remove</button>}</span></label></div></section>
-    <section className="rp-card"><h3>Backup</h3><p className="rp-intro">Files are saved in this browser only. Download a backup to move them to another computer or share them with your agency. Attached documents are not included.</p>
+    <section className="rp-card"><h3>Backup</h3><p className="rp-intro">Files are saved in this browser only. Download a backup to move them to another computer or share them. Attached documents are not included.</p>
       <div className="rp-actions"><button className="rp-primary" onClick={backup}><Download size={15}/> Download backup</button><label className="rp-ghost"><Upload size={14}/> Restore backup<input type="file" accept="application/json" hidden onChange={e => restore(e.target.files?.[0])}/></label></div></section>
   </div>;
 }
