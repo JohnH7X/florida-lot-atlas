@@ -33,7 +33,7 @@ function shell(title: string, s: Settings, body: string) {
   .noprint{position:sticky;top:0;background:#fff;padding:10px 0;text-align:right}.noprint button{font:600 13px sans-serif;background:${c};color:#fff;border:0;border-radius:6px;padding:9px 16px;cursor:pointer}
   @media print{.noprint{display:none}.page{padding:0}}
   </style></head><body><div class="page"><div class="noprint"><button onclick="print()">Print / Save as PDF</button></div>
-  <div class="brand">${s.logo ? `<img src="${esc(s.logo)}" alt="">` : ''}<div><b style="font-size:16px">${esc(s.agency || 'Property file')}</b></div>
+  <div class="brand">
   <a class="maker" href="https://garabedian.ai" target="_blank" rel="noreferrer" title="Garabedian AI"><img src="${GARABEDIAN_LOGO}" alt="Garabedian AI"></a></div>
   ${body}</div></body></html>`;
 }
