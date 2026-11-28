@@ -63,6 +63,8 @@ interface Props {
   marion?: string[];
   /** Fort Lauderdale CMBS loan maturities (public/data/cmbs-fort-lauderdale.geojson). */
   cmbs?: boolean;
+  /** Florida-wide CMBS loans maturing 2026–2028 with a modeled funding gap (public/data/cmbs-florida-gaps.geojson). */
+  cmbsFl?: boolean;
   /** Ids from POLY_SETS (Collier, Highlands, Lake overlays) that are switched on. */
   polys?: string[];
   /** Cocoa Beach utility layers that are switched on (ids from CB_LAYERS). */
@@ -409,22 +411,22 @@ export default function MapView(props: Props) {
             instance.on('click', 'place-pins', e => { const id = e.features?.[0]?.properties?.id; if (id) callbacks.current.onPlacePinClick?.(String(id)); });
           }
           // CMBS loans with scheduled maturities (Debt Maturity Hunter): circles sized by balance, coloured by research priority.
-          {
-            const vis = callbacks.current.cmbs ? 'visible' : 'none';
-            instance.addSource('cmbs', { type: 'geojson', data: '/data/cmbs-fort-lauderdale.geojson' });
-            instance.addLayer({ id: 'cmbs-circle', type: 'circle', source: 'cmbs', layout: { visibility: vis }, paint: {
+          for (const [pfx, url] of [['cmbs', '/data/cmbs-fort-lauderdale.geojson'], ['cmbsfl', '/data/cmbs-florida-gaps.geojson']] as const) {
+            const vis = (pfx === 'cmbs' ? callbacks.current.cmbs : callbacks.current.cmbsFl) ? 'visible' : 'none';
+            instance.addSource(pfx, { type: 'geojson', data: url });
+            instance.addLayer({ id: `${pfx}-circle`, type: 'circle', source: pfx, layout: { visibility: vis }, paint: {
               'circle-color': ['match', ['get', 'band'], 'high', '#b9533f', 'medium', '#e08a00', 'verify', '#7c3aed', '#1f4f7a'],
               'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'balance']], 1500, 6, 12000, 22],
               'circle-opacity': ['case', ['<=', ['get', 'months'], 18], 0.92, 0.5],
               'circle-stroke-color': '#ffffff', 'circle-stroke-width': ['case', ['<=', ['get', 'months'], 18], 2.5, 1] } });
-            if (instance.getStyle().glyphs) instance.addLayer({ id: 'cmbs-label', type: 'symbol', source: 'cmbs', minzoom: 12, layout: { visibility: vis,
+            if (instance.getStyle().glyphs) instance.addLayer({ id: `${pfx}-label`, type: 'symbol', source: pfx, minzoom: 12, layout: { visibility: vis,
               'text-field': ['get', 'title'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.6], 'text-anchor': 'top', 'text-max-width': 10, 'text-optional': true },
               paint: { 'text-color': '#16283f', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } });
             const usd = (n: number) => n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : `$${Math.round(n).toLocaleString()}`;
             const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
-            instance.on('mouseenter', 'cmbs-circle', () => { if (instance) instance.getCanvas().style.cursor = 'pointer'; });
-            instance.on('mouseleave', 'cmbs-circle', () => { if (instance) instance.getCanvas().style.cursor = ''; });
-            instance.on('click', 'cmbs-circle', e => {
+            instance.on('mouseenter', `${pfx}-circle`, () => { if (instance) instance.getCanvas().style.cursor = 'pointer'; });
+            instance.on('mouseleave', `${pfx}-circle`, () => { if (instance) instance.getCanvas().style.cursor = ''; });
+            instance.on('click', `${pfx}-circle`, e => {
               const f = e.features?.[0]; if (!f || !instance) return;
               const p = f.properties as Record<string, any>;
               const n = (k: string) => (p[k] === null || p[k] === undefined || p[k] === 'null') ? null : Number(p[k]);
@@ -660,7 +662,8 @@ export default function MapView(props: Props) {
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
     for (const id of ['cmbs-circle', 'cmbs-label']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', props.cmbs ? 'visible' : 'none');
-  }, [props.cmbs, ready]);
+    for (const id of ['cmbsfl-circle', 'cmbsfl-label']) if (m.getLayer(id)) m.setLayoutProperty(id, 'visibility', props.cmbsFl ? 'visible' : 'none');
+  }, [props.cmbs, props.cmbsFl, ready]);
   useEffect(() => { if (ready) { refreshPolyRef.current(); refreshVsRef.current(); } }, [props.hernando, props.marion, props.polys, ready]);
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
